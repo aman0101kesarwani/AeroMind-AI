@@ -1,9 +1,9 @@
 import streamlit as st
+
 from services.pdf_service import save_uploaded_files
 
 
 st.title("AeroMind AI")
-# st.write("Welcome to AeroMind AI")
 
 st.header("Upload Engineering Documents")
 
@@ -15,4 +15,7 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files:
     save_uploaded_files(uploaded_files)
-    st.success(f"{len(uploaded_files)} file(s) uploaded successfully!")
+
+    st.success(
+        f"{len(uploaded_files)} file(s) uploaded successfully!"
+    )

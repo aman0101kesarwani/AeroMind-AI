@@ -22,6 +22,56 @@ def extract_pdf_from_pdf(pdf_path : Path):
     return pages
 
 
+
+
+
+
+# extract text from pdf
+def extract_text_from_pdf(pdf_path: Path):
+    """
+    Extract text from a PDF page by page.
+    """
+
+    document = fitz.open(pdf_path)
+
+    pages = []
+
+    for page_number, page in enumerate(document):
+        pages.append({
+            "page": page_number + 1,
+            "text": page.get_text()
+        })
+
+    document.close()
+
+    return pages
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 """
 pdf_path : which is the location of the PDF.
 """
