@@ -3,15 +3,27 @@ from pathlib import Path
 from services.ingestion_service import ingest_pdf
 
 
-pdf_path = next(
-    Path("data/uploaded_pdfs").glob("*.pdf")
-)
+pdf_folder = Path("data/uploaded_pdfs")
 
-result = ingest_pdf(pdf_path)
+pdf_files = list(pdf_folder.glob("*.pdf"))
 
-print("\nINGESTION COMPLETE")
-print("=" * 60)
 
-print("Source:", result["source"])
-print("Pages:", result["pages"])
-print("Chunks:", result["chunks"])
+for pdf_path in pdf_files:
+
+    result = ingest_pdf(pdf_path)
+
+    print("\n# INGESTION COMPLETE")
+    print("=" * 50)
+
+    print("Source:", result["source"])
+    print("Status:", result["status"])
+
+    if result["status"] == "processed":
+
+        print("Pages:", result["pages"])
+        print("Chunks:", result["chunks"])
+
+    elif result["status"] == "already_indexed":
+
+        print("ℹ️ Document was already indexed.")
+        print("No embedding was generated.")

@@ -1,13 +1,16 @@
 import streamlit as st
 
-from pathlib import Path
-
 from services.pdf_service import save_uploaded_files
 from services.ingestion_service import ingest_pdf
 from services.retrieval_service import retrieve_chunks
 from services.gemini_service import generate_rag_answer
 
+from vectorstore.chroma_store import get_indexed_documents
 
+
+# --------------------------------------------------
+# Page Configuration
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="AeroMind AI",
@@ -16,8 +19,40 @@ st.set_page_config(
 )
 
 
+# --------------------------------------------------
+# Sidebar - Documents
+# --------------------------------------------------
+
+st.sidebar.title("📚 Your Documents")
+
+indexed_documents = get_indexed_documents()
+
+if indexed_documents:
+
+    selected_documents = st.sidebar.multiselect(
+        "Search in:",
+        indexed_documents,
+        default=indexed_documents
+    )
+
+else:
+
+    selected_documents = []
+
+    st.sidebar.info(
+        "Upload a PDF to get started."
+    )
+
+
+# --------------------------------------------------
+# Main Title
+# --------------------------------------------------
+
 st.title("✈️ AeroMind AI")
-st.caption("Multimodal Agentic RAG for Engineering Documents")
+
+st.caption(
+    "Multimodal Agentic RAG for Engineering Documents"
+)
 
 
 # --------------------------------------------------
@@ -32,33 +67,37 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
+
 if uploaded_files:
 
-    save_uploaded_files(uploaded_files)
+    saved_paths = save_uploaded_files(
+        uploaded_files
+    )
 
     st.success(
         f"{len(uploaded_files)} file(s) uploaded successfully!"
     )
 
-    if st.button("⚙️ Process Documents"):
+    # Automatically process every uploaded PDF
+    for pdf_path in saved_paths:
 
-        pdf_folder = Path("data/uploaded_pdfs")
+        with st.spinner(
+            f"🔄 Processing {pdf_path.name}..."
+        ):
 
-        pdf_files = list(pdf_folder.glob("*.pdf"))
+            result = ingest_pdf(pdf_path)
 
-        progress_text = st.empty()
+        if result["status"] == "already_indexed":
 
-        for pdf_path in pdf_files:
-
-            progress_text.write(
-                f"Processing: {pdf_path.name}"
+            st.info(
+                f"✓ {pdf_path.name} is already indexed."
             )
 
-            ingest_pdf(pdf_path)
+        elif result["status"] == "processed":
 
-        progress_text.success(
-            "✅ All documents processed successfully!"
-        )
+            st.success(
+                f"✅ {pdf_path.name} is ready for questions!"
+            )
 
 
 # --------------------------------------------------
@@ -68,7 +107,9 @@ if uploaded_files:
 st.header("💬 Ask Your Documents")
 
 
+# Initialize chat history
 if "messages" not in st.session_state:
+
     st.session_state.messages = []
 
 
@@ -76,9 +117,13 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
 
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+
+        st.markdown(
+            message["content"]
+        )
 
 
+# Chat input
 question = st.chat_input(
     "Ask a question about your engineering documents..."
 )
@@ -86,41 +131,87 @@ question = st.chat_input(
 
 if question:
 
-    # Show user message
+    # --------------------------------------------------
+    # Check document selection
+    # --------------------------------------------------
+
+    if not selected_documents:
+
+        st.warning(
+            "⚠️ Please select at least one document "
+            "from the sidebar."
+        )
+
+        st.stop()
+
+
+    # --------------------------------------------------
+    # Show User Message
+    # --------------------------------------------------
+
     with st.chat_message("user"):
+
         st.markdown(question)
 
+
     st.session_state.messages.append({
+
         "role": "user",
+
         "content": question
+
     })
 
 
-    # Retrieve relevant chunks
-    with st.spinner("🔎 Searching documents..."):
+    # --------------------------------------------------
+    # Retrieve Relevant Chunks
+    # --------------------------------------------------
+
+    with st.spinner(
+        "🔎 Searching documents..."
+    ):
 
         retrieved_chunks = retrieve_chunks(
+
             question,
-            top_k=5
+
+            top_k=5,
+
+            sources=selected_documents
+
         )
 
 
-    # Generate answer
-    with st.spinner("🤖 Generating answer..."):
+    # --------------------------------------------------
+    # Generate Answer
+    # --------------------------------------------------
+
+    with st.spinner(
+        "🤖 Generating answer..."
+    ):
 
         answer = generate_rag_answer(
+
             question,
+
             retrieved_chunks
+
         )
 
 
-    # Show answer
+    # --------------------------------------------------
+    # Show Assistant Answer
+    # --------------------------------------------------
+
     with st.chat_message("assistant"):
 
         st.markdown(answer)
 
 
     st.session_state.messages.append({
+
         "role": "assistant",
+
         "content": answer
+
     })

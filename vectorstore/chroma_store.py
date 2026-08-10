@@ -3,7 +3,6 @@ import hashlib
 
 DB_PATH = "data/chroma_db"
 
-
 client = chromadb.PersistentClient(path=DB_PATH)
 
 collection = client.get_or_create_collection(
@@ -11,10 +10,9 @@ collection = client.get_or_create_collection(
 )
 
 
-
-# Create a Function to Store Chunks
+# Store chunks
 def add_chunks(chunks, embeddings, source):
-    
+
     ids = []
     documents = []
     metadatas = []
@@ -42,19 +40,61 @@ def add_chunks(chunks, embeddings, source):
     )
 
 
+# Search chunks
+def search_chunks(
+    query_embedding,
+    top_k=5,
+    sources=None
+):
 
+    query_params = {
+        "query_embeddings": [query_embedding.tolist()],
+        "n_results": top_k
+    }
 
-# def get_collection_count():
-#     return collection.count()
+    if sources:
 
-
-
-def search_chunks(query_embedding, top_k=3):
+        query_params["where"] = {
+            "source": {
+                "$in": sources
+            }
+        }
 
     results = collection.query(
-        query_embeddings=[query_embedding.tolist()],
-        n_results=top_k
+        **query_params
     )
 
     return results
 
+
+# Check whether document is already indexed
+def document_exists(source):
+
+    results = collection.get(
+        where={
+            "source": source
+        },
+        limit=1
+    )
+
+    return len(results["ids"]) > 0
+
+
+# Get all indexed document names
+def get_indexed_documents():
+
+    results = collection.get(
+        include=["metadatas"]
+    )
+
+    sources = set()
+
+    for metadata in results["metadatas"]:
+
+        if metadata and "source" in metadata:
+
+            sources.add(
+                metadata["source"]
+            )
+
+    return sorted(sources)
