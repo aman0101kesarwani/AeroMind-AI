@@ -1,17 +1,90 @@
 import os
 
-from dotenv import load_dotenv
 from google import genai
+from dotenv import load_dotenv
 
 
 load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
 
-client = genai.Client(api_key=api_key)
 
+def generate_rag_answer(
+    question,
+    retrieved_chunks
+):
 
-def generate_answer(prompt):
+    if not retrieved_chunks:
+
+        return (
+            "I could not find this information "
+            "in the provided documents."
+        )
+
+    # --------------------------------------------------
+    # Build context
+    # --------------------------------------------------
+
+    context_parts = []
+
+    for chunk in retrieved_chunks:
+
+        context_parts.append(
+            f"""
+SOURCE: {chunk["source"]}
+PAGE: {chunk["page"]}
+
+{chunk["text"]}
+"""
+        )
+
+    context = "\n\n---\n\n".join(
+        context_parts
+    )
+
+    # --------------------------------------------------
+    # Prompt
+    # --------------------------------------------------
+
+    prompt = f"""
+You are AeroMind AI, an AI assistant for
+engineering documents.
+
+Answer the user's question using ONLY the
+provided document context.
+
+Do not use outside knowledge.
+
+If the answer cannot be found in the provided
+context, say:
+
+"I could not find this information in the
+provided documents."
+
+When answering:
+
+- Be clear and technically accurate.
+- Do not invent facts.
+- Keep the answer concise but useful.
+- Cite the source filename and page number.
+- If multiple sources support the answer, cite them.
+
+DOCUMENT CONTEXT:
+
+{context}
+
+USER QUESTION:
+
+{question}
+
+ANSWER:
+"""
+
+    # --------------------------------------------------
+    # Gemini
+    # --------------------------------------------------
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -19,48 +92,3 @@ def generate_answer(prompt):
     )
 
     return response.text
-
-
-
-
-
-
-
-
-# Create a RAG Prompt
-def generate_rag_answer(question, retrieved_chunks):
-
-    context = "\n\n".join(
-        [
-            f"Source: {chunk['source']}\n"
-            f"Page: {chunk['page']}\n"
-            f"Content: {chunk['text']}"
-            for chunk in retrieved_chunks
-        ]
-    )
-
-    prompt = f"""
-You are AeroMind AI, an engineering document assistant.
-
-Answer the user's question using ONLY the provided document context.
-
-If the answer cannot be found in the context, say:
-"I could not find this information in the provided documents."
-
-Do not invent information.
-
-User Question:
-{question}
-
-Document Context:
-{context}
-
-Provide a clear and concise answer.
-
-At the end, provide a "Sources" section listing the
-document name and page number used for the answer.
-
-Do not cite sources that were not provided in the context.
-"""
-
-    return generate_answer(prompt)

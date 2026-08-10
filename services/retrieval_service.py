@@ -1,5 +1,8 @@
 from embeddings.embedding_model import generate_embeddings
-from vectorstore.chroma_store import search_chunks
+
+from vectorstore.supabase_vector_store import (
+    search_chunks
+)
 
 
 def retrieve_chunks(
@@ -20,22 +23,21 @@ def retrieve_chunks(
 
     retrieved_chunks = []
 
-    for i in range(
-        len(results["documents"][0])
-    ):
+    for result in results:
 
         retrieved_chunks.append({
 
-            "text": results["documents"][0][i],
+            "text":
+                result["content"],
 
             "source":
-                results["metadatas"][0][i]["source"],
+                result["filename"],
 
             "page":
-                results["metadatas"][0][i]["page"],
+                result["page"],
 
-            "distance":
-                results["distances"][0][i]
+            "similarity":
+                result["similarity"]
         })
 
     return retrieved_chunks
