@@ -39,5 +39,17 @@ def add_chunks(chunks, embeddings, source):
 
 
 
-def get_collection_count():
-    return collection.count()
+# def get_collection_count():
+#     return collection.count()
+
+
+
+def search_chunks(query_embedding, top_k=3):
+
+    results = collection.query(
+        query_embeddings=[query_embedding.tolist()],
+        n_results=top_k
+    )
+
+    return results
+
