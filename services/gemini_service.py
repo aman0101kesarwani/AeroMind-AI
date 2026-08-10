@@ -56,6 +56,11 @@ Document Context:
 {context}
 
 Provide a clear and concise answer.
+
+At the end, provide a "Sources" section listing the
+document name and page number used for the answer.
+
+Do not cite sources that were not provided in the context.
 """
 
     return generate_answer(prompt)

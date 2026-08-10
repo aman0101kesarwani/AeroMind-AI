@@ -6,7 +6,6 @@ from embeddings.embedding_model import generate_embeddings
 from vectorstore.chroma_store import add_chunks
 
 
-
 def ingest_pdf(pdf_path: Path):
 
     print(f"\nProcessing: {pdf_path.name}")

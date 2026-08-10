@@ -1,29 +1,35 @@
-from embeddings.embedding_model import generate_embeddings
-from vectorstore.chroma_store import search_chunks
+from services.retrieval_service import retrieve_chunks
 
 
-# query = "What is the engine maintenance procedure?"
-# query = "What inspection procedures are described?"
-# query = "What are the safety requirements?"
-query = "What maintenance schedule is recommended?"
+question = "What are the procedures for glow plug inspection and testing?"
 
-query_embedding = generate_embeddings([query])[0]
+results = retrieve_chunks(
+    question,
+    top_k=5
+)
 
-results = search_chunks(query_embedding, top_k=3)
 
-print("\nSEARCH RESULTS")
+print("\n# SEARCH RESULTS")
 print("=" * 60)
 
-for i in range(3):
+for i, chunk in enumerate(results):
 
     print(f"\nResult {i + 1}")
 
-    print("Source:", results["metadatas"][0][i]["source"])
-
-    print("Page:", results["metadatas"][0][i]["page"])
+    print("Source:", chunk["source"])
+    print("Page:", chunk["page"])
+    print("Distance:", chunk["distance"])
 
     print("Text:")
-    print(results["documents"][0][i][:500])
+    print(chunk["text"][:500])
 
-    print("\nDistances:")
-    print(results["distances"])
+
+
+
+
+
+
+
+
+
+
