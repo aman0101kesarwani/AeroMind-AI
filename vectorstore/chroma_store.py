@@ -1,4 +1,5 @@
 import chromadb
+import hashlib
 
 DB_PATH = "data/chroma_db"
 
@@ -20,7 +21,11 @@ def add_chunks(chunks, embeddings, source):
 
     for i, chunk in enumerate(chunks):
 
-        ids.append(f"{source}_{i}")
+        chunk_id = hashlib.md5(
+            f"{source}_{i}".encode()
+        ).hexdigest()
+
+        ids.append(chunk_id)
 
         documents.append(chunk["text"])
 
@@ -29,7 +34,7 @@ def add_chunks(chunks, embeddings, source):
             "page": chunk["page"]
         })
 
-    collection.add(
+    collection.upsert(
         ids=ids,
         documents=documents,
         embeddings=embeddings.tolist(),
