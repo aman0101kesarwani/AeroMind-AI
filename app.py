@@ -3,6 +3,8 @@ import tempfile
 import os
 import uuid
 
+from streamlit_cookies_controller import CookieController
+
 from services.retrieval_service import (
     retrieve_chunks
 )
@@ -33,16 +35,38 @@ st.set_page_config(
 
 
 # ==================================================
-# Anonymous User Identity
+# Persistent Anonymous User Identity
 # ==================================================
 
-if "user_id" not in st.session_state:
+cookies = CookieController()
 
-    st.session_state.user_id = str(
+COOKIE_NAME = "aeromind_user_id"
+
+
+# --------------------------------------------------
+# Get existing user ID
+# --------------------------------------------------
+
+user_id = cookies.get(
+    COOKIE_NAME
+)
+
+
+# --------------------------------------------------
+# Create user ID for first-time visitor
+# --------------------------------------------------
+
+if not user_id:
+
+    user_id = str(
         uuid.uuid4()
     )
 
-user_id = st.session_state.user_id
+    cookies.set(
+        COOKIE_NAME,
+        user_id,
+        max_age=60 * 60 * 24 * 365
+    )
 
 
 # ==================================================
@@ -60,7 +84,9 @@ st.caption(
 # Sidebar - Documents
 # ==================================================
 
-st.sidebar.title("📚 Your Documents")
+st.sidebar.title(
+    "📚 Your Documents"
+)
 
 
 documents = get_indexed_documents(
@@ -69,7 +95,7 @@ documents = get_indexed_documents(
 
 
 # ==================================================
-# Delete Documents
+# Document Management
 # ==================================================
 
 if documents:
@@ -108,8 +134,12 @@ if documents:
                     ):
 
                         deleted = delete_document(
-                            filename=filename,
-                            user_id=user_id
+
+                            filename=
+                                filename,
+
+                            user_id=
+                                user_id
                         )
 
 
@@ -137,11 +167,13 @@ if documents:
 
 
     # --------------------------------------------------
-    # Select Documents
+    # Document Selection
     # --------------------------------------------------
 
     document_names = [
+
         document["filename"]
+
         for document in documents
     ]
 
@@ -169,7 +201,9 @@ else:
 # PDF Upload
 # ==================================================
 
-st.header("📄 Upload Engineering Documents")
+st.header(
+    "📄 Upload Engineering Documents"
+)
 
 
 uploaded_files = st.file_uploader(
@@ -206,7 +240,7 @@ if uploaded_files:
                 try:
 
                     # ----------------------------------
-                    # Temporary server file
+                    # Temporary processing file
                     # ----------------------------------
 
                     with tempfile.NamedTemporaryFile(
@@ -239,7 +273,7 @@ if uploaded_files:
 
 
                     # ----------------------------------
-                    # Already Indexed
+                    # Already indexed
                     # ----------------------------------
 
                     if (
@@ -255,7 +289,7 @@ if uploaded_files:
 
 
                     # ----------------------------------
-                    # Successfully Processed
+                    # Successfully processed
                     # ----------------------------------
 
                     elif (
@@ -266,7 +300,7 @@ if uploaded_files:
 
                         st.success(
                             f"✅ {uploaded_file.name} "
-                            "is ready!"
+                            "is ready for questions!"
                         )
 
 
@@ -302,7 +336,7 @@ if uploaded_files:
                 finally:
 
                     # ----------------------------------
-                    # Delete temporary server PDF
+                    # Remove temporary server copy
                     # ----------------------------------
 
                     if (
@@ -323,8 +357,6 @@ if uploaded_files:
                             pass
 
 
-        # Refresh UI
-
         st.rerun()
 
 
@@ -332,7 +364,9 @@ if uploaded_files:
 # Chat
 # ==================================================
 
-st.header("💬 Ask Your Documents")
+st.header(
+    "💬 Ask Your Documents"
+)
 
 
 # ==================================================
@@ -388,7 +422,9 @@ if question:
     # User message
     # --------------------------------------------------
 
-    with st.chat_message("user"):
+    with st.chat_message(
+        "user"
+    ):
 
         st.markdown(
             question
@@ -406,7 +442,7 @@ if question:
 
 
     # --------------------------------------------------
-    # Retrieval
+    # Vector retrieval
     # --------------------------------------------------
 
     with st.spinner(
@@ -441,7 +477,7 @@ if question:
 
 
     # --------------------------------------------------
-    # No Results
+    # No relevant information
     # --------------------------------------------------
 
     if not retrieved_chunks:
@@ -453,7 +489,7 @@ if question:
 
 
     # --------------------------------------------------
-    # Generate Answer
+    # Generate answer
     # --------------------------------------------------
 
     else:
@@ -480,7 +516,7 @@ if question:
 
 
     # --------------------------------------------------
-    # Assistant
+    # Assistant response
     # --------------------------------------------------
 
     with st.chat_message(
@@ -493,7 +529,7 @@ if question:
 
 
     # --------------------------------------------------
-    # Save
+    # Save response
     # --------------------------------------------------
 
     st.session_state.messages.append({
