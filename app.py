@@ -1,31 +1,24 @@
 import streamlit as st
+from pathlib import Path
 import tempfile
 import os
 import uuid
 
-from streamlit_cookies_controller import CookieController
-
-from services.retrieval_service import (
-    retrieve_chunks
-)
-
-from services.gemini_service import (
-    generate_rag_answer
-)
+from services.retrieval_service import retrieve_chunks
+from services.gemini_service import generate_rag_answer
 
 from services.cloud_ingestion_service import (
     ingest_uploaded_pdf
 )
 
 from vectorstore.supabase_vector_store import (
-    get_indexed_documents,
-    delete_document
+    get_indexed_documents
 )
 
 
-# ==================================================
-# Page Configuration
-# ==================================================
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
     page_title="AeroMind AI",
@@ -34,44 +27,27 @@ st.set_page_config(
 )
 
 
-# ==================================================
-# Persistent Anonymous User Identity
-# ==================================================
+# ============================================================
+# USER ID
+# ============================================================
 
-cookies = CookieController()
+if "user_id" not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
 
-COOKIE_NAME = "aeromind_user_id"
-
-
-# --------------------------------------------------
-# Get existing user ID
-# --------------------------------------------------
-
-user_id = cookies.get(
-    COOKIE_NAME
-)
+user_id = st.session_state.user_id
 
 
-# --------------------------------------------------
-# Create user ID for first-time visitor
-# --------------------------------------------------
+# ============================================================
+# INITIALIZE CHAT
+# ============================================================
 
-if not user_id:
-
-    user_id = str(
-        uuid.uuid4()
-    )
-
-    cookies.set(
-        COOKIE_NAME,
-        user_id,
-        max_age=60 * 60 * 24 * 365
-    )
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 
-# ==================================================
-# Main Title
-# ==================================================
+# ============================================================
+# TITLE
+# ============================================================
 
 st.title("✈️ AeroMind AI")
 
@@ -80,113 +56,38 @@ st.caption(
 )
 
 
-# ==================================================
-# Sidebar - Documents
-# ==================================================
+# ============================================================
+# SIDEBAR
+# ============================================================
 
-st.sidebar.title(
-    "📚 Your Documents"
-)
+st.sidebar.title("📚 Your Documents")
 
+try:
 
-documents = get_indexed_documents(
-    user_id=user_id
-)
+    indexed_documents = get_indexed_documents(
+        user_id=user_id
+    )
 
+except Exception as e:
 
-# ==================================================
-# Document Management
-# ==================================================
+    indexed_documents = []
 
-if documents:
+    st.sidebar.error(
+        "Unable to load documents."
+    )
 
     st.sidebar.caption(
-        f"{len(documents)} document(s)"
+        f"Database error: {e}"
     )
 
 
-    for document in documents:
-
-        filename = document[
-            "filename"
-        ]
-
-
-        with st.sidebar.container(
-            border=True
-        ):
-
-            st.write(
-                f"📄 {filename}"
-            )
-
-
-            if st.button(
-                "🗑️ Delete",
-                key=f"delete_{document['id']}",
-                use_container_width=True
-            ):
-
-                try:
-
-                    with st.spinner(
-                        f"Deleting {filename}..."
-                    ):
-
-                        deleted = delete_document(
-
-                            filename=
-                                filename,
-
-                            user_id=
-                                user_id
-                        )
-
-
-                    if deleted:
-
-                        st.success(
-                            f"Deleted {filename}"
-                        )
-
-                    else:
-
-                        st.warning(
-                            "Document not found."
-                        )
-
-
-                    st.rerun()
-
-
-                except Exception as e:
-
-                    st.error(
-                        f"❌ Delete failed: {e}"
-                    )
-
-
-    # --------------------------------------------------
-    # Document Selection
-    # --------------------------------------------------
-
-    document_names = [
-
-        document["filename"]
-
-        for document in documents
-    ]
-
+if indexed_documents:
 
     selected_documents = st.sidebar.multiselect(
-
         "Search in:",
-
-        document_names,
-
-        default=document_names
+        indexed_documents,
+        default=indexed_documents
     )
-
 
 else:
 
@@ -197,186 +98,211 @@ else:
     )
 
 
-# ==================================================
-# PDF Upload
-# ==================================================
+# ============================================================
+# UPLOAD
+# ============================================================
 
-st.header(
-    "📄 Upload Engineering Documents"
-)
-
+st.header("📄 Upload Engineering Documents")
 
 uploaded_files = st.file_uploader(
-
     "Choose PDF files",
-
     type=["pdf"],
-
     accept_multiple_files=True
 )
 
 
-# ==================================================
-# Process Uploaded PDFs
-# ==================================================
+# ============================================================
+# PROCESS DOCUMENTS
+# ============================================================
 
 if uploaded_files:
 
+    st.success(
+        f"{len(uploaded_files)} PDF(s) selected."
+    )
+
     if st.button(
         "🚀 Process Documents",
-        type="primary"
+        type="primary",
+        use_container_width=False
     ):
 
-        for uploaded_file in uploaded_files:
+        total_files = len(uploaded_files)
 
-            with st.spinner(
-                f"🔄 Processing "
-                f"{uploaded_file.name}..."
-            ):
+        for file_number, uploaded_file in enumerate(
+            uploaded_files,
+            start=1
+        ):
 
-                temp_path = None
+            st.divider()
+
+            st.subheader(
+                f"📄 {uploaded_file.name}"
+            )
+
+            progress = st.progress(0)
+
+            status = st.empty()
+
+            temp_path = None
+
+            try:
+
+                # ------------------------------------------------
+                # STEP 1 — SAVE TEMPORARILY
+                # ------------------------------------------------
+
+                status.info(
+                    "1/5 💾 Saving PDF temporarily..."
+                )
+
+                with tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=".pdf"
+                ) as temp_file:
+
+                    temp_file.write(
+                        uploaded_file.getbuffer()
+                    )
+
+                    temp_path = Path(
+                        temp_file.name
+                    )
+
+                progress.progress(10)
 
 
-                try:
+                # ------------------------------------------------
+                # STEP 2 — INGEST PDF
+                # ------------------------------------------------
 
-                    # ----------------------------------
-                    # Temporary processing file
-                    # ----------------------------------
+                status.info(
+                    "2/5 📖 Reading and splitting PDF..."
+                )
 
-                    with tempfile.NamedTemporaryFile(
-                        delete=False,
-                        suffix=".pdf"
-                    ) as temp_file:
+                result = ingest_uploaded_pdf(
+                    temp_path,
+                    user_id=user_id
+                )
 
-                        temp_file.write(
-                            uploaded_file.getbuffer()
-                        )
-
-                        temp_path = temp_file.name
+                progress.progress(100)
 
 
-                    # ----------------------------------
-                    # Cloud ingestion
-                    # ----------------------------------
+                # ------------------------------------------------
+                # ALREADY INDEXED
+                # ------------------------------------------------
 
-                    result = ingest_uploaded_pdf(
+                if result.get("status") == "already_indexed":
 
-                        pdf_path=
-                            temp_path,
-
-                        user_id=
-                            user_id,
-
-                        filename=
-                            uploaded_file.name
+                    status.success(
+                        f"✓ {uploaded_file.name} "
+                        "is already indexed."
                     )
 
 
-                    # ----------------------------------
-                    # Already indexed
-                    # ----------------------------------
+                # ------------------------------------------------
+                # SUCCESS
+                # ------------------------------------------------
 
-                    if (
-                        result["status"]
-                        ==
-                        "already_indexed"
-                    ):
+                elif result.get("status") == "processed":
 
-                        st.info(
-                            f"✓ {uploaded_file.name} "
-                            "is already indexed."
-                        )
+                    status.success(
+                        f"✅ {uploaded_file.name} "
+                        "processed successfully!"
+                    )
 
+                    st.write(
+                        f"📄 Pages: "
+                        f"{result.get('pages', 0)}"
+                    )
 
-                    # ----------------------------------
-                    # Successfully processed
-                    # ----------------------------------
+                    st.write(
+                        f"🧩 Chunks: "
+                        f"{result.get('chunks', 0)}"
+                    )
 
-                    elif (
-                        result["status"]
-                        ==
-                        "processed"
-                    ):
+                else:
 
-                        st.success(
-                            f"✅ {uploaded_file.name} "
-                            "is ready for questions!"
-                        )
-
-
-                        st.caption(
-
-                            f"Pages: "
-                            f"{result['pages']} | "
-
-                            f"Chunks: "
-                            f"{result['chunks']}"
-                        )
-
-
-                    else:
-
-                        st.warning(
-                            f"⚠️ "
-                            f"{uploaded_file.name}: "
-                            f"{result}"
-                        )
-
-
-                except Exception as e:
-
-                    st.error(
-
-                        f"❌ Failed to process "
-                        f"{uploaded_file.name}: "
-                        f"{e}"
+                    status.warning(
+                        f"⚠️ Unexpected result: {result}"
                     )
 
 
-                finally:
+            except Exception as e:
 
-                    # ----------------------------------
-                    # Remove temporary server copy
-                    # ----------------------------------
+                progress.progress(0)
 
-                    if (
-                        temp_path
-                        and os.path.exists(
-                            temp_path
-                        )
-                    ):
+                status.error(
+                    f"❌ Processing failed: {e}"
+                )
 
-                        try:
+                st.exception(e)
 
-                            os.remove(
-                                temp_path
-                            )
 
-                        except Exception:
+            finally:
 
-                            pass
+                # ------------------------------------------------
+                # DELETE TEMPORARY PDF
+                # ------------------------------------------------
 
+                if temp_path is not None:
+
+                    try:
+
+                        if temp_path.exists():
+
+                            os.remove(temp_path)
+
+                    except Exception:
+
+                        pass
+
+
+        # ========================================================
+        # REFRESH AFTER PROCESSING
+        # ========================================================
+
+        st.success(
+            "🎉 Processing finished. "
+            "Refreshing your document list..."
+        )
 
         st.rerun()
 
 
-# ==================================================
-# Chat
-# ==================================================
+# ============================================================
+# REFRESH BUTTON
+# ============================================================
 
-st.header(
-    "💬 Ask Your Documents"
-)
+if st.sidebar.button(
+    "🔄 Refresh Documents"
+):
+
+    st.rerun()
 
 
-# ==================================================
-# Chat History
-# ==================================================
+# ============================================================
+# CHAT
+# ============================================================
 
-if "messages" not in st.session_state:
+st.header("💬 Ask Your Documents")
 
-    st.session_state.messages = []
 
+# ============================================================
+# DOCUMENT CHECK
+# ============================================================
+
+if not indexed_documents:
+
+    st.info(
+        "📄 Upload and process a PDF above. "
+        "Once processing finishes, you can ask questions here."
+    )
+
+
+# ============================================================
+# DISPLAY CHAT HISTORY
+# ============================================================
 
 for message in st.session_state.messages:
 
@@ -389,61 +315,62 @@ for message in st.session_state.messages:
         )
 
 
-# ==================================================
-# Chat Input
-# ==================================================
+# ============================================================
+# CHAT INPUT
+# ============================================================
 
 question = st.chat_input(
     "Ask a question about your engineering documents..."
 )
 
 
-# ==================================================
-# Process Question
-# ==================================================
+# ============================================================
+# PROCESS QUESTION
+# ============================================================
 
 if question:
 
-    # --------------------------------------------------
-    # Check documents
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # DOCUMENT CHECK
+    # ----------------------------------------------------------
 
-    if not selected_documents:
+    if not indexed_documents:
 
         st.warning(
-            "⚠️ Please select at least one "
-            "document from the sidebar."
+            "⚠️ Please upload and process a PDF first."
         )
 
         st.stop()
 
 
-    # --------------------------------------------------
-    # User message
-    # --------------------------------------------------
+    if not selected_documents:
 
-    with st.chat_message(
-        "user"
-    ):
-
-        st.markdown(
-            question
+        st.warning(
+            "⚠️ Please select at least one document "
+            "from the sidebar."
         )
+
+        st.stop()
+
+
+    # ----------------------------------------------------------
+    # USER MESSAGE
+    # ----------------------------------------------------------
+
+    with st.chat_message("user"):
+
+        st.markdown(question)
 
 
     st.session_state.messages.append({
-
-        "role":
-            "user",
-
-        "content":
-            question
+        "role": "user",
+        "content": question
     })
 
 
-    # --------------------------------------------------
-    # Vector retrieval
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # RETRIEVAL
+    # ----------------------------------------------------------
 
     with st.spinner(
         "🔎 Searching your documents..."
@@ -452,20 +379,11 @@ if question:
         try:
 
             retrieved_chunks = retrieve_chunks(
-
-                question=
-                    question,
-
-                top_k=
-                    5,
-
-                sources=
-                    selected_documents,
-
-                user_id=
-                    user_id
+                question,
+                top_k=5,
+                sources=selected_documents,
+                user_id=user_id
             )
-
 
         except Exception as e:
 
@@ -473,12 +391,14 @@ if question:
                 f"❌ Retrieval failed: {e}"
             )
 
+            st.exception(e)
+
             st.stop()
 
 
-    # --------------------------------------------------
-    # No relevant information
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # NO RESULTS
+    # ----------------------------------------------------------
 
     if not retrieved_chunks:
 
@@ -488,9 +408,9 @@ if question:
         )
 
 
-    # --------------------------------------------------
-    # Generate answer
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # GENERATE ANSWER
+    # ----------------------------------------------------------
 
     else:
 
@@ -501,42 +421,36 @@ if question:
             try:
 
                 answer = generate_rag_answer(
-
                     question,
-
                     retrieved_chunks
                 )
 
-            except Exception:
+            except Exception as e:
 
                 answer = (
                     "⚠️ I couldn't generate an answer "
-                    "right now. Please try again."
+                    "right now."
+                )
+
+                st.error(
+                    f"Generation error: {e}"
                 )
 
 
-    # --------------------------------------------------
-    # Assistant response
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # SHOW ANSWER
+    # ----------------------------------------------------------
 
-    with st.chat_message(
-        "assistant"
-    ):
+    with st.chat_message("assistant"):
 
-        st.markdown(
-            answer
-        )
+        st.markdown(answer)
 
 
-    # --------------------------------------------------
-    # Save response
-    # --------------------------------------------------
+    # ----------------------------------------------------------
+    # SAVE ANSWER
+    # ----------------------------------------------------------
 
     st.session_state.messages.append({
-
-        "role":
-            "assistant",
-
-        "content":
-            answer
+        "role": "assistant",
+        "content": answer
     })
