@@ -1,22 +1,11 @@
-# Environment
-.env
-
-# Python
-__pycache__/
-*.py[cod]
-
-# Virtual environment
 .venv/
-venv/
+__pycache__/
+*.pyc
 
-# Local data
+.env
+.streamlit/secrets.toml
+
 data/uploaded_pdfs/
 data/chroma_db/
 
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
+*.log

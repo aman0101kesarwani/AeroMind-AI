@@ -6,9 +6,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+try:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY is missing.")
+
+
 client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
+    api_key=GEMINI_API_KEY
 )
+
+
 
 
 def generate_rag_answer(
