@@ -1,69 +1,113 @@
 from pathlib import Path
+import re
 
-from services.pdf_reader import (
-    extract_text_from_pdf
-)
+from services.pdf_reader import extract_text_from_pdf
+from services.text_splitter import split_pages_into_chunks
+from embeddings.embedding_model import generate_embeddings
 
-from services.text_splitter import (
-    split_pages_into_chunks
-)
-
-from embeddings.embedding_model import (
-    generate_embeddings
-)
-
-from vectorstore.supabase_vector_store import (
-    add_chunks,
-    document_exists,
+from services.document_service import (
     create_document,
-    upload_pdf
+    document_exists,
+)
+
+from services.storage_service import (
+    upload_pdf,
+    delete_pdf,
 )
 
 
 # ============================================================
-# Cloud PDF Ingestion
+# AeroMind AI - Cloud PDF Ingestion
+# ============================================================
+
+
+def _safe_filename(filename: str) -> str:
+    """
+    Keep the original filename while removing characters
+    that could cause problems in a storage path.
+    """
+
+    filename = Path(filename).name
+
+    filename = re.sub(
+        r"[^a-zA-Z0-9._()\- ]",
+        "_",
+        filename
+    )
+
+    return filename.strip() or "document.pdf"
+
+
+# ============================================================
+# Ingest Uploaded PDF
 # ============================================================
 
 def ingest_uploaded_pdf(
     pdf_path: Path,
     user_id: str,
-    filename: str
+    original_filename: str | None = None
 ):
     """
-    Process an uploaded PDF.
+    Complete PDF ingestion pipeline.
 
-    Pipeline:
+    The PDF is:
+        1. Read
+        2. Stored in Supabase Storage
+        3. Text extracted
+        4. Split into chunks
+        5. Embedded
+        6. Stored in Supabase
 
-    PDF
-      ↓
-    Supabase Storage
-      ↓
-    Extract text
-      ↓
-    Chunk
-      ↓
-    Qwen embeddings
-      ↓
-    Supabase pgvector
+    Everything persistent is stored in Supabase.
     """
 
     # --------------------------------------------------------
-    # Validate
+    # Validate user
     # --------------------------------------------------------
 
     if not user_id:
-
         raise ValueError(
-            "user_id is required."
+            "user_id is required for document isolation."
         )
 
+    # --------------------------------------------------------
+    # Determine real filename
+    # --------------------------------------------------------
 
-    if not filename:
-
-        raise ValueError(
-            "filename is required."
+    if original_filename:
+        filename = _safe_filename(
+            original_filename
+        )
+    else:
+        filename = _safe_filename(
+            pdf_path.name
         )
 
+    # --------------------------------------------------------
+    # Storage path
+    # --------------------------------------------------------
+
+    storage_path = (
+        f"{user_id}/{filename}"
+    )
+
+    # --------------------------------------------------------
+    # Check duplicate for THIS user
+    # --------------------------------------------------------
+
+    if document_exists(
+        filename=filename,
+        user_id=user_id
+    ):
+
+        return {
+            "source": filename,
+            "status": "already_indexed"
+        }
+
+    # --------------------------------------------------------
+    # Validate PDF
+    # --------------------------------------------------------
 
     if not pdf_path.exists():
 
@@ -71,222 +115,188 @@ def ingest_uploaded_pdf(
             f"PDF not found: {pdf_path}"
         )
 
+    if pdf_path.stat().st_size == 0:
 
-    # --------------------------------------------------------
-    # Original filename
-    # --------------------------------------------------------
+        raise ValueError(
+            "The uploaded PDF is empty."
+        )
 
-    source = filename
-
-
-    # --------------------------------------------------------
-    # Check duplicate document
-    # --------------------------------------------------------
-
-    if document_exists(
-        filename=source,
-        user_id=user_id
-    ):
-
-        return {
-
-            "source":
-                source,
-
-            "status":
-                "already_indexed"
-        }
-
-
-    # --------------------------------------------------------
-    # Storage path
-    # --------------------------------------------------------
-    #
-    # Each user gets their own folder.
-    #
-    # Example:
-    #
-    # user-id/
-    #     engine.pdf
-    #
-    # --------------------------------------------------------
-
-    storage_path = (
-        f"{user_id}/{source}"
-    )
-
-
-    # --------------------------------------------------------
-    # 1. Upload PDF to Supabase Storage
-    # --------------------------------------------------------
-
-    upload_pdf(
-        pdf_path=pdf_path,
-        storage_path=storage_path
-    )
-
-
-    print(
-        f"Uploaded to Storage: "
-        f"{storage_path}"
-    )
-
+    uploaded_to_storage = False
 
     try:
 
-        # ----------------------------------------------------
-        # 2. Read PDF
-        # ----------------------------------------------------
+        # ====================================================
+        # 1. Read PDF bytes
+        # ====================================================
+
+        with open(
+            pdf_path,
+            "rb"
+        ) as file:
+
+            pdf_bytes = file.read()
+
+        # ====================================================
+        # 2. Upload original PDF to Supabase Storage
+        # ====================================================
+
+        upload_pdf(
+            file_bytes=pdf_bytes,
+            storage_path=storage_path
+        )
+
+        uploaded_to_storage = True
+
+        # ====================================================
+        # 3. Extract PDF text
+        # ====================================================
 
         pages = extract_text_from_pdf(
             pdf_path
         )
 
+        if not pages:
 
-        print(
-            f"Pages extracted: "
-            f"{len(pages)}"
-        )
+            raise ValueError(
+                "No readable text was found in the PDF."
+            )
 
-
-        # ----------------------------------------------------
-        # 3. Create Chunks
-        # ----------------------------------------------------
+        # ====================================================
+        # 4. Create chunks
+        # ====================================================
 
         chunks = split_pages_into_chunks(
             pages
         )
 
+        if not chunks:
 
-        print(
-            f"Chunks created: "
-            f"{len(chunks)}"
-        )
+            raise ValueError(
+                "No text chunks could be created from the PDF."
+            )
 
-
-        # ----------------------------------------------------
-        # 4. Extract Text
-        # ----------------------------------------------------
+        # ====================================================
+        # 5. Extract chunk text
+        # ====================================================
 
         texts = [
-
             chunk["text"]
-
             for chunk in chunks
         ]
 
+        # Remove empty chunks
+        valid_chunks = []
 
-        # ----------------------------------------------------
-        # 5. Generate Embeddings
-        # ----------------------------------------------------
+        valid_texts = []
+
+        for chunk, text in zip(
+            chunks,
+            texts
+        ):
+
+            if text and text.strip():
+
+                valid_chunks.append(
+                    chunk
+                )
+
+                valid_texts.append(
+                    text
+                )
+
+        if not valid_chunks:
+
+            raise ValueError(
+                "The PDF contains no usable text."
+            )
+
+        # ====================================================
+        # 6. Generate embeddings
+        # ====================================================
 
         embeddings = generate_embeddings(
-            texts
+            valid_texts
         )
 
+        if embeddings is None:
+            raise RuntimeError(
+                "Embedding generation returned no result."
+            )
 
-        print(
-            f"Embeddings generated: "
-            f"{len(embeddings)}"
-        )
+        if len(embeddings) != len(valid_chunks):
 
+            raise RuntimeError(
+                "Embedding count does not match "
+                "the number of document chunks."
+            )
 
-        # ----------------------------------------------------
-        # 6. Create Document Record
-        # ----------------------------------------------------
+        # ====================================================
+        # 7. Create document database record
+        # ====================================================
 
         document = create_document(
 
-            filename=source,
+            filename=filename,
 
             storage_path=storage_path,
 
             user_id=user_id
         )
 
-
         document_id = document["id"]
 
+        # ====================================================
+        # 8. Store vectors/chunks
+        # ====================================================
 
-        print(
-            f"Document created: "
-            f"{document_id}"
-        )
-
-
-        # ----------------------------------------------------
-        # 7. Store Chunks + Embeddings
-        # ----------------------------------------------------
+        from vectorstore.supabase_vector_store import add_chunks
 
         add_chunks(
 
-            document_id=
-                document_id,
+            document_id=document_id,
 
-            chunks=
-                chunks,
+            chunks=valid_chunks,
 
-            embeddings=
-                embeddings,
+            embeddings=embeddings,
 
-            user_id=
-                user_id
+            user_id=user_id
         )
 
-
-        print(
-            "Stored chunks and embeddings "
-            "in Supabase."
-        )
-
-
-        # ----------------------------------------------------
-        # 8. Return
-        # ----------------------------------------------------
+        # ====================================================
+        # 9. Return success
+        # ====================================================
 
         return {
 
-            "source":
-                source,
+            "source": filename,
 
-            "status":
-                "processed",
+            "status": "processed",
 
-            "pages":
-                len(pages),
+            "pages": len(pages),
 
-            "chunks":
-                len(chunks),
+            "chunks": len(valid_chunks),
 
-            "document_id":
-                document_id
+            "document_id": document_id,
+
+            "storage_path": storage_path
         }
-
 
     except Exception:
 
         # ----------------------------------------------------
-        # IMPORTANT
-        # ----------------------------------------------------
-        #
-        # If ingestion fails after Storage upload,
-        # remove the orphan PDF.
-        #
+        # Cleanup Storage if processing failed
         # ----------------------------------------------------
 
-        try:
+        if uploaded_to_storage:
 
-            from vectorstore.supabase_vector_store import (
-                delete_pdf
-            )
+            try:
 
-            delete_pdf(
-                storage_path
-            )
+                delete_pdf(
+                    storage_path
+                )
 
-        except Exception:
+            except Exception:
 
-            pass
-
+                pass
 
         raise
