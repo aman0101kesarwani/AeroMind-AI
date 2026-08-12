@@ -1,527 +1,733 @@
-import os
-import tempfile
-import uuid
-from pathlib import Path
-
 import streamlit as st
+from pathlib import Path
+import tempfile
+import os
+import uuid
 
-from services.cloud_ingestion_service import (
-    ingest_uploaded_pdf
-)
+from services.retrieval_service import retrieve_chunks
+from services.gemini_service import generate_rag_answer
 
-from services.retrieval_service import (
-    retrieve_chunks
-)
+from services.cloud_ingestion_service import ingest_uploaded_pdf
 
-from services.gemini_service import (
-    generate_rag_answer
-)
-
-from services.document_service import (
-    get_user_documents,
-    delete_document
-)
-
-from services.storage_service import (
-    delete_pdf
-)
+from vectorstore.supabase_vector_store import get_indexed_documents
 
 
 # ============================================================
-# AeroMind AI
-# Main Streamlit Application
-# ============================================================
-
-
-# ============================================================
-# Page Configuration
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
     page_title="AeroMind AI",
     page_icon="✈️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# User Identity
+# USER IDENTITY
 # ============================================================
 
-# Anonymous user identity.
-#
-# No Google authentication.
-# No Supabase Auth account.
-#
-# Each active Streamlit session gets its own user_id.
-# All documents/vectors are stored using this user_id.
-
 if "user_id" not in st.session_state:
-
-    st.session_state.user_id = str(
-        uuid.uuid4()
-    )
-
+    st.session_state.user_id = str(uuid.uuid4())
 
 user_id = st.session_state.user_id
 
 
 # ============================================================
-# Chat State
+# CHAT HISTORY
 # ============================================================
 
 if "messages" not in st.session_state:
-
     st.session_state.messages = []
 
 
 # ============================================================
-# Page Header
+# CUSTOM UI
 # ============================================================
 
-st.title("✈️ AeroMind AI")
+st.markdown(
+    """
+    <style>
 
-st.caption(
-    "Multimodal Agentic RAG for Engineering Documents"
+    /* ======================================================
+       GLOBAL
+    ====================================================== */
+
+    .stApp {
+        background:
+            radial-gradient(
+                circle at top,
+                rgba(70, 70, 90, 0.30),
+                transparent 45%
+            ),
+            #17181d;
+        color: #f5f5f7;
+    }
+
+    .main .block-container {
+        max-width: 900px;
+        padding-top: 0rem;
+        padding-bottom: 3rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+
+    /* ======================================================
+       HIDE STREAMLIT DEFAULT ELEMENTS
+       ====================================================== */
+
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    header {
+        visibility: hidden;
+    }
+
+
+    /* ======================================================
+       TOP NAVIGATION
+       ====================================================== */
+
+    .aero-navbar {
+        width: 100%;
+        height: 62px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        padding: 0 22px;
+
+        background: rgba(30, 30, 36, 0.95);
+
+        border-bottom:
+            1px solid rgba(255,255,255,0.10);
+
+        margin-bottom: 18px;
+
+        border-radius: 0 0 12px 12px;
+
+        box-sizing: border-box;
+    }
+
+    .aero-logo {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+    }
+
+    .aero-nav-right {
+        display: flex;
+        gap: 24px;
+        align-items: center;
+
+        color: #d7d7dc;
+
+        font-size: 13px;
+    }
+
+    .aero-status {
+        color: #7bd88f;
+    }
+
+
+    /* ======================================================
+       MAIN CARD
+       ====================================================== */
+
+    .aero-card {
+        width: 100%;
+
+        background:
+            linear-gradient(
+                145deg,
+                rgba(65,65,76,0.90),
+                rgba(40,40,48,0.94)
+            );
+
+        border:
+            1px solid rgba(255,255,255,0.14);
+
+        border-radius: 14px;
+
+        box-shadow:
+            0 18px 60px rgba(0,0,0,0.30);
+
+        overflow: hidden;
+    }
+
+
+    /* ======================================================
+       SERVICE STATUS
+       ====================================================== */
+
+    .service-status {
+        text-align: center;
+
+        padding: 10px;
+
+        font-size: 12px;
+
+        color: #eeeeee;
+
+        border-bottom:
+            1px solid rgba(255,255,255,0.10);
+    }
+
+    .service-active {
+        color: #72d88a;
+    }
+
+
+    /* ======================================================
+       HERO
+       ====================================================== */
+
+    .hero {
+        text-align: center;
+
+        padding:
+            45px 30px 25px 30px;
+    }
+
+    .hero h1 {
+        margin: 0;
+
+        font-size: 36px;
+
+        line-height: 1.12;
+
+        font-weight: 700;
+
+        letter-spacing: -1px;
+    }
+
+    .hero p {
+        margin-top: 14px;
+
+        color: #b9b9c1;
+
+        font-size: 14px;
+    }
+
+
+    /* ======================================================
+       UPLOAD AREA
+       ====================================================== */
+
+    .upload-info {
+        text-align: center;
+
+        margin:
+            5px auto 20px auto;
+
+        color: #c9c9cf;
+
+        font-size: 13px;
+    }
+
+
+    /* ======================================================
+       BUTTONS
+       ====================================================== */
+
+    .stButton > button {
+
+        border-radius: 8px;
+
+        border:
+            1px solid rgba(255,255,255,0.22);
+
+        background:
+            linear-gradient(
+                180deg,
+                #ffffff,
+                #e8e8ea
+            );
+
+        color: #15151a;
+
+        font-weight: 600;
+
+        min-height: 42px;
+
+        transition: all 0.2s ease;
+    }
+
+    .stButton > button:hover {
+
+        transform: translateY(-1px);
+
+        border-color: #ffffff;
+
+        box-shadow:
+            0 6px 20px rgba(0,0,0,0.25);
+    }
+
+
+    /* ======================================================
+       PRIMARY PROCESS BUTTON
+       ====================================================== */
+
+    .process-button button {
+
+        background:
+            linear-gradient(
+                135deg,
+                #ffffff,
+                #dddddf
+            ) !important;
+
+        color: #17171b !important;
+
+        border:
+            1px solid #ffffff !important;
+
+        font-weight: 700 !important;
+    }
+
+
+    /* ======================================================
+       FILE UPLOADER
+       ====================================================== */
+
+    [data-testid="stFileUploader"] {
+
+        background:
+            rgba(25,25,30,0.45);
+
+        border:
+            1px dashed rgba(255,255,255,0.30);
+
+        border-radius: 10px;
+
+        padding: 8px;
+    }
+
+    [data-testid="stFileUploaderDropzone"] {
+
+        background:
+            rgba(255,255,255,0.025);
+
+        border-radius: 8px;
+    }
+
+
+    /* ======================================================
+       DOCUMENT LIBRARY
+       ====================================================== */
+
+    .library-title {
+
+        font-size: 14px;
+
+        font-weight: 600;
+
+        color: #eeeeef;
+
+        margin-top: 5px;
+
+        margin-bottom: 8px;
+    }
+
+
+    /* ======================================================
+       CHAT AREA
+       ====================================================== */
+
+    .chat-title {
+
+        text-align: left;
+
+        font-size: 14px;
+
+        font-weight: 600;
+
+        color: #eeeeee;
+
+        margin:
+            10px 0 10px 0;
+    }
+
+
+    /* ======================================================
+       CHAT MESSAGES
+       ====================================================== */
+
+    [data-testid="stChatMessage"] {
+
+        background:
+            rgba(255,255,255,0.035);
+
+        border:
+            1px solid rgba(255,255,255,0.08);
+
+        border-radius: 10px;
+
+        margin-bottom: 8px;
+    }
+
+
+    /* ======================================================
+       CHAT INPUT
+       ====================================================== */
+
+    [data-testid="stChatInput"] {
+
+        margin-top: 12px;
+    }
+
+    [data-testid="stChatInput"] textarea {
+
+        background:
+            rgba(35,35,42,0.95) !important;
+
+        color: #ffffff !important;
+
+        border:
+            1px solid rgba(255,255,255,0.35) !important;
+
+        border-radius: 10px !important;
+    }
+
+
+    /* ======================================================
+       INFO / SUCCESS / WARNING
+       ====================================================== */
+
+    [data-testid="stAlert"] {
+
+        border-radius: 9px;
+    }
+
+
+    /* ======================================================
+       DIVIDER
+       ====================================================== */
+
+    .aero-divider {
+
+        height: 1px;
+
+        background:
+            rgba(255,255,255,0.10);
+
+        margin:
+            8px 0 20px 0;
+    }
+
+
+    /* ======================================================
+       FOOTER
+       ====================================================== */
+
+    .aero-footer {
+
+        text-align: center;
+
+        color: #777780;
+
+        font-size: 11px;
+
+        padding: 22px 0 5px 0;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# Sidebar
+# TOP NAVBAR
 # ============================================================
 
-st.sidebar.title("📚 Your Documents")
+st.markdown(
+    """
+    <div class="aero-navbar">
 
-st.sidebar.caption(
-    "Documents uploaded in this session"
+        <div class="aero-logo">
+            ✈️ AeroMind
+        </div>
+
+        <div class="aero-nav-right">
+            <span>My Library</span>
+            <span>AeroMind</span>
+            <span>Account</span>
+            <span class="aero-status">● Active</span>
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# Load User Documents
+# MAIN CARD
+# ============================================================
+
+st.markdown(
+    """
+    <div class="aero-card">
+
+        <div class="service-status">
+            Service Status:
+            <span class="service-active">Active</span>
+        </div>
+
+        <div class="hero">
+
+            <h1>
+                Pick a PDF.<br>
+                AeroMind Analyzes.<br>
+                Then Ask Questions. 📄
+            </h1>
+
+            <p>
+                Upload your engineering document and let AeroMind
+                retrieve answers directly from it.
+            </p>
+
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# DOCUMENTS FROM SUPABASE
 # ============================================================
 
 try:
 
-    user_documents = get_user_documents(
+    indexed_documents = get_indexed_documents(
         user_id=user_id
     )
 
 except Exception as e:
 
-    st.sidebar.error(
-        "Unable to load your documents."
-    )
+    indexed_documents = []
 
-    st.sidebar.caption(
-        str(e)
+    st.error(
+        f"Unable to load your document library: {e}"
     )
-
-    user_documents = []
 
 
 # ============================================================
-# Document Selection
+# DOCUMENT LIBRARY
 # ============================================================
 
-if user_documents:
+st.markdown(
+    '<div class="library-title">📚 My Document Library</div>',
+    unsafe_allow_html=True,
+)
 
-    document_names = [
-        document["filename"]
-        for document in user_documents
-    ]
 
-    selected_documents = st.sidebar.multiselect(
-        "Search in:",
-        document_names,
-        default=document_names
+if indexed_documents:
+
+    selected_documents = st.multiselect(
+        "Select documents to search",
+        indexed_documents,
+        default=indexed_documents,
+        label_visibility="collapsed",
     )
 
 else:
 
     selected_documents = []
 
-    st.sidebar.info(
-        "No documents processed yet."
+    st.info(
+        "No documents uploaded yet. Upload a PDF below to get started."
     )
 
 
 # ============================================================
-# Delete Documents
+# DIVIDER
 # ============================================================
 
-st.sidebar.divider()
-
-st.sidebar.subheader("🗑️ Delete Document")
-
-
-if user_documents:
-
-    delete_options = [
-        document["filename"]
-        for document in user_documents
-    ]
-
-    document_to_delete = st.sidebar.selectbox(
-        "Select document:",
-        delete_options,
-        key="delete_document_select"
-    )
-
-    if st.sidebar.button(
-        "🗑️ Delete Selected Document",
-        use_container_width=True
-    ):
-
-        document = next(
-            (
-                item
-                for item in user_documents
-                if item["filename"]
-                == document_to_delete
-            ),
-            None
-        )
-
-        if document is None:
-
-            st.sidebar.error(
-                "Document could not be found."
-            )
-
-        else:
-
-            try:
-
-                # ------------------------------------------
-                # 1. Delete PDF from Supabase Storage
-                # ------------------------------------------
-
-                storage_path = document[
-                    "storage_path"
-                ]
-
-                if storage_path:
-
-                    delete_pdf(
-                        storage_path
-                    )
-
-                # ------------------------------------------
-                # 2. Delete database document
-                # ------------------------------------------
-
-                delete_document(
-                    document_id=document["id"],
-                    user_id=user_id
-                )
-
-                # ------------------------------------------
-                # 3. Clear chat
-                # ------------------------------------------
-
-                st.session_state.messages = []
-
-                st.sidebar.success(
-                    f"Deleted: {document_to_delete}"
-                )
-
-                # ------------------------------------------
-                # 4. Refresh application
-                # ------------------------------------------
-
-                st.rerun()
-
-            except Exception as e:
-
-                st.sidebar.error(
-                    "Failed to delete document."
-                )
-
-                st.sidebar.caption(
-                    str(e)
-                )
-
-else:
-
-    st.sidebar.caption(
-        "Upload and process a PDF first."
-    )
+st.markdown(
+    '<div class="aero-divider"></div>',
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
-# Refresh Documents
+# UPLOAD SECTION
 # ============================================================
 
-if st.sidebar.button(
-    "🔄 Refresh Documents",
-    use_container_width=True
-):
-
-    st.rerun()
-
-
-# ============================================================
-# Upload Section
-# ============================================================
-
-st.header("📄 Upload Engineering Documents")
-
-st.write(
-    "Upload one or more PDF files. "
-    "AeroMind will automatically extract, "
-    "embed, and index them."
+st.markdown(
+    """
+    <div class="upload-info">
+        📄 Upload a PDF and AeroMind will automatically analyze it.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
 uploaded_files = st.file_uploader(
-    "Choose PDF files",
+    "Upload PDF",
     type=["pdf"],
     accept_multiple_files=True,
-    key="pdf_uploader"
+    label_visibility="collapsed",
 )
 
 
 # ============================================================
-# Process Documents
+# PROCESS BUTTON
 # ============================================================
 
 if uploaded_files:
 
-    st.write(
-        f"**{len(uploaded_files)} PDF(s) selected**"
+    st.markdown(
+        '<div class="process-button">',
+        unsafe_allow_html=True,
     )
 
-    for uploaded_file in uploaded_files:
-
-        st.caption(
-            f"📄 {uploaded_file.name} "
-            f"({uploaded_file.size / 1024:.1f} KB)"
-        )
-
-    if st.button(
-        "🚀 Process Documents",
+    process_clicked = st.button(
+        "⬆️  ANALYZE PDF",
         type="primary",
-        use_container_width=True
-    ):
+        use_container_width=True,
+    )
 
-        total_files = len(
-            uploaded_files
-        )
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-        successful = 0
+    if process_clicked:
 
-        already_indexed = 0
+        processed_any = False
 
-        failed = 0
+        for uploaded_file in uploaded_files:
 
-        progress = st.progress(0)
+            with st.spinner(
+                f"Analyzing {uploaded_file.name}..."
+            ):
 
-        status_box = st.empty()
+                temp_path = None
 
-        for index, uploaded_file in enumerate(
-            uploaded_files
-        ):
+                try:
 
-            status_box.info(
-                f"🔄 Processing "
-                f"{uploaded_file.name} "
-                f"({index + 1}/{total_files})"
-            )
+                    # ------------------------------------------
+                    # TEMPORARY PDF
+                    # ------------------------------------------
 
-            temp_path = None
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=".pdf",
+                    ) as temp_file:
 
-            try:
-
-                # ==========================================
-                # Save temporary copy
-                # ==========================================
-
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix=".pdf"
-                ) as temp_file:
-
-                    temp_file.write(
-                        uploaded_file.getbuffer()
-                    )
-
-                    temp_path = Path(
-                        temp_file.name
-                    )
-
-                # ==========================================
-                # Process PDF
-                # ==========================================
-
-                result = ingest_uploaded_pdf(
-
-                    pdf_path=temp_path,
-
-                    user_id=user_id,
-
-                    original_filename=
-                        uploaded_file.name
-                )
-
-                # ==========================================
-                # Already Indexed
-                # ==========================================
-
-                if (
-                    result["status"]
-                    == "already_indexed"
-                ):
-
-                    already_indexed += 1
-
-                    st.info(
-                        f"✓ {uploaded_file.name} "
-                        "is already indexed."
-                    )
-
-                # ==========================================
-                # Successfully Processed
-                # ==========================================
-
-                elif (
-                    result["status"]
-                    == "processed"
-                ):
-
-                    successful += 1
-
-                    st.success(
-                        f"✅ {uploaded_file.name} "
-                        "processed successfully."
-                    )
-
-                    st.caption(
-                        f"Pages: "
-                        f"{result.get('pages', '?')} | "
-                        f"Chunks: "
-                        f"{result.get('chunks', '?')}"
-                    )
-
-                # ==========================================
-                # Unknown Result
-                # ==========================================
-
-                else:
-
-                    failed += 1
-
-                    st.warning(
-                        f"⚠️ Unexpected result for "
-                        f"{uploaded_file.name}: "
-                        f"{result}"
-                    )
-
-            except Exception as e:
-
-                failed += 1
-
-                st.error(
-                    f"❌ Failed to process "
-                    f"{uploaded_file.name}"
-                )
-
-                st.exception(e)
-
-            finally:
-
-                # ==========================================
-                # Delete temporary local PDF
-                # ==========================================
-
-                if (
-                    temp_path is not None
-                    and temp_path.exists()
-                ):
-
-                    try:
-
-                        os.remove(
-                            temp_path
+                        temp_file.write(
+                            uploaded_file.getbuffer()
                         )
 
-                    except Exception:
+                        temp_path = Path(
+                            temp_file.name
+                        )
 
-                        pass
+                    # ------------------------------------------
+                    # EXISTING CLOUD INGESTION
+                    # ------------------------------------------
 
-            progress.progress(
-                (index + 1) / total_files
+                    result = ingest_uploaded_pdf(
+                        temp_path,
+                        user_id=user_id,
+                    )
+
+                    # ------------------------------------------
+                    # RESULT
+                    # ------------------------------------------
+
+                    if result.get("status") == "already_indexed":
+
+                        st.info(
+                            f"✓ {uploaded_file.name} "
+                            "is already available."
+                        )
+
+                        processed_any = True
+
+                    elif result.get("status") == "processed":
+
+                        st.success(
+                            f"✅ {uploaded_file.name} "
+                            "has been analyzed successfully."
+                        )
+
+                        st.caption(
+                            f"Pages: {result.get('pages', 0)}  •  "
+                            f"Chunks: {result.get('chunks', 0)}"
+                        )
+
+                        processed_any = True
+
+                    else:
+
+                        st.warning(
+                            f"Unexpected result for "
+                            f"{uploaded_file.name}: {result}"
+                        )
+
+                except Exception as e:
+
+                    st.error(
+                        f"❌ Could not analyze "
+                        f"{uploaded_file.name}: {e}"
+                    )
+
+                finally:
+
+                    # ------------------------------------------
+                    # REMOVE TEMPORARY LOCAL FILE
+                    # ------------------------------------------
+
+                    if (
+                        temp_path is not None
+                        and temp_path.exists()
+                    ):
+
+                        try:
+                            os.remove(temp_path)
+
+                        except Exception:
+                            pass
+
+        # ----------------------------------------------
+        # REFRESH DOCUMENT LIBRARY
+        # ----------------------------------------------
+
+        if processed_any:
+
+            st.success(
+                "Your document is now ready for questions."
             )
 
-        # ==================================================
-        # Final Processing Status
-        # ==================================================
-
-        status_box.success(
-            "Processing completed."
-        )
-
-        st.write("---")
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-
-            st.metric(
-                "Processed",
-                successful
-            )
-
-        with col2:
-
-            st.metric(
-                "Already Indexed",
-                already_indexed
-            )
-
-        with col3:
-
-            st.metric(
-                "Failed",
-                failed
-            )
-
-        # ==================================================
-        # Refresh sidebar
-        # ==================================================
-
-        st.rerun()
+            st.rerun()
 
 
 # ============================================================
-# Chat Section
+# CHAT SECTION
 # ============================================================
 
-st.header("💬 Ask Your Documents")
-
-
-# ============================================================
-# Current Document Status
-# ============================================================
-
-if selected_documents:
-
-    st.success(
-        f"Searching in "
-        f"{len(selected_documents)} "
-        f"document(s)."
-    )
-
-else:
-
-    st.info(
-        "Select at least one document "
-        "from the sidebar."
-    )
+st.markdown(
+    '<div class="chat-title">💬 Ask AeroMind</div>',
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
-# Display Chat History
+# EXISTING CHAT HISTORY
 # ============================================================
 
 for message in st.session_state.messages:
@@ -536,194 +742,142 @@ for message in st.session_state.messages:
 
 
 # ============================================================
-# Chat Input
+# CHAT INPUT
 # ============================================================
 
 question = st.chat_input(
-    "Ask a question about your engineering documents..."
+    "Ask AeroMind about your document..."
 )
 
 
 # ============================================================
-# Process Question
+# QUESTION PROCESSING
 # ============================================================
 
 if question:
 
-    # ========================================================
-    # Validate Documents
-    # ========================================================
+    # --------------------------------------------------------
+    # DOCUMENT CHECK
+    # --------------------------------------------------------
 
     if not selected_documents:
 
         st.warning(
-            "⚠️ Please select at least one "
-            "document from the sidebar."
+            "Please upload and analyze a PDF first."
         )
 
         st.stop()
 
-    # ========================================================
-    # Display User Question
-    # ========================================================
+
+    # --------------------------------------------------------
+    # USER MESSAGE
+    # --------------------------------------------------------
 
     with st.chat_message("user"):
 
-        st.markdown(
-            question
-        )
+        st.markdown(question)
 
-    st.session_state.messages.append({
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": question,
+        }
+    )
 
-        "role": "user",
 
-        "content": question
-    })
+    # --------------------------------------------------------
+    # RETRIEVAL
+    # --------------------------------------------------------
 
-    # ========================================================
-    # Retrieve
-    # ========================================================
-
-    with st.chat_message("assistant"):
-
-        retrieval_status = st.empty()
-
-        retrieval_status.info(
-            "🔎 Searching your documents..."
-        )
+    with st.spinner(
+        "🔎 Searching your documents..."
+    ):
 
         try:
 
             retrieved_chunks = retrieve_chunks(
-
-                question=question,
-
+                question,
                 top_k=5,
-
                 sources=selected_documents,
-
-                user_id=user_id
+                user_id=user_id,
             )
 
         except Exception as e:
 
-            retrieval_status.error(
-                "❌ Document search failed."
+            st.error(
+                f"❌ Document search failed: {e}"
             )
-
-            st.exception(e)
 
             st.stop()
 
-        # ====================================================
-        # No Results
-        # ====================================================
 
-        if not retrieved_chunks:
+    # --------------------------------------------------------
+    # NO RESULTS
+    # --------------------------------------------------------
 
-            answer = (
-                "I couldn't find relevant "
-                "information in the selected "
-                "documents."
-            )
+    if not retrieved_chunks:
 
-            retrieval_status.empty()
+        answer = (
+            "I couldn't find relevant information "
+            "in your selected documents."
+        )
 
-            st.markdown(
-                answer
-            )
 
-        else:
+    # --------------------------------------------------------
+    # GENERATE ANSWER
+    # --------------------------------------------------------
 
-            retrieval_status.success(
-                f"🔎 Found "
-                f"{len(retrieved_chunks)} "
-                f"relevant sections."
-            )
+    else:
 
-            # =================================================
-            # Generate Gemini Answer
-            # =================================================
+        with st.spinner(
+            "🤖 AeroMind is thinking..."
+        ):
 
-            with st.spinner(
-                "🤖 Generating answer..."
-            ):
+            try:
 
-                try:
-
-                    answer = generate_rag_answer(
-
-                        question,
-
-                        retrieved_chunks
-                    )
-
-                except Exception as e:
-
-                    answer = (
-                        "⚠️ I couldn't generate "
-                        "an answer right now."
-                    )
-
-                    st.error(
-                        str(e)
-                    )
-
-            # =================================================
-            # Show Answer
-            # =================================================
-
-            st.markdown(
-                answer
-            )
-
-            # =================================================
-            # Sources
-            # =================================================
-
-            st.markdown(
-                "### 📚 Sources"
-            )
-
-            shown_sources = set()
-
-            for chunk in retrieved_chunks:
-
-                source = chunk.get(
-                    "source",
-                    "Unknown"
+                answer = generate_rag_answer(
+                    question,
+                    retrieved_chunks,
                 )
 
-                page = chunk.get(
-                    "page",
-                    "?"
+            except Exception as e:
+
+                answer = (
+                    "⚠️ I couldn't generate an answer "
+                    "right now. Please try again."
                 )
 
-                source_key = (
-                    source,
-                    page
-                )
 
-                if source_key in shown_sources:
+    # --------------------------------------------------------
+    # ASSISTANT MESSAGE
+    # --------------------------------------------------------
 
-                    continue
+    with st.chat_message("assistant"):
 
-                shown_sources.add(
-                    source_key
-                )
+        st.markdown(answer)
 
-                st.caption(
-                    f"📄 {source} "
-                    f"— Page {page}"
-                )
 
-    # ========================================================
-    # Save Assistant Message
-    # ========================================================
+    # --------------------------------------------------------
+    # SAVE MESSAGE
+    # --------------------------------------------------------
 
-    st.session_state.messages.append({
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": answer,
+        }
+    )
 
-        "role": "assistant",
 
-        "content": answer
-    })
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown(
+    """
+    <div class="aero-footer">
+        AeroMind AI • Engineering Document Intelligence
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
