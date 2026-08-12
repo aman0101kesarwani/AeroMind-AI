@@ -13,7 +13,7 @@ from vectorstore.supabase_vector_store import get_indexed_documents
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -25,7 +25,7 @@ st.set_page_config(
 
 
 # ============================================================
-# USER IDENTITY
+# USER ID
 # ============================================================
 
 if "user_id" not in st.session_state:
@@ -43,400 +43,343 @@ if "messages" not in st.session_state:
 
 
 # ============================================================
-# CUSTOM UI
+# CUSTOM CSS
 # ============================================================
 
 st.markdown(
     """
     <style>
 
-    /* ======================================================
+    /* =====================================================
        GLOBAL
-    ====================================================== */
+       ===================================================== */
 
     .stApp {
         background:
             radial-gradient(
-                circle at top,
-                rgba(70, 70, 90, 0.30),
-                transparent 45%
-            ),
-            #17181d;
+                circle at top center,
+                #252632 0%,
+                #17181e 42%,
+                #101116 100%
+            );
         color: #f5f5f7;
     }
 
     .main .block-container {
-        max-width: 900px;
-        padding-top: 0rem;
-        padding-bottom: 3rem;
-        padding-left: 1rem;
-        padding-right: 1rem;
+        max-width: 1180px;
+        padding-top: 1rem;
+        padding-bottom: 7rem;
     }
 
-
-    /* ======================================================
-       HIDE STREAMLIT DEFAULT ELEMENTS
-       ====================================================== */
-
+    /* Hide Streamlit default chrome */
     #MainMenu {
         visibility: hidden;
+    }
+
+    header[data-testid="stHeader"] {
+        background: transparent;
     }
 
     footer {
         visibility: hidden;
     }
 
-    header {
-        visibility: hidden;
-    }
 
-
-    /* ======================================================
+    /* =====================================================
        TOP NAVIGATION
-       ====================================================== */
+       ===================================================== */
 
-    .aero-navbar {
-        width: 100%;
-        height: 62px;
-
+    .aero-nav {
+        height: 64px;
         display: flex;
         align-items: center;
         justify-content: space-between;
 
-        padding: 0 22px;
-
-        background: rgba(30, 30, 36, 0.95);
-
-        border-bottom:
-            1px solid rgba(255,255,255,0.10);
+        padding: 0 24px;
 
         margin-bottom: 18px;
 
-        border-radius: 0 0 12px 12px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
 
-        box-sizing: border-box;
+        background: rgba(30,31,39,0.82);
+
+        box-shadow:
+            0 10px 30px rgba(0,0,0,0.20);
     }
 
     .aero-logo {
-        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        font-size: 18px;
         font-weight: 700;
-        letter-spacing: -0.3px;
+        color: #ffffff;
+    }
+
+    .aero-plane {
+        font-size: 24px;
     }
 
     .aero-nav-right {
         display: flex;
-        gap: 24px;
         align-items: center;
-
-        color: #d7d7dc;
+        gap: 24px;
 
         font-size: 13px;
+        color: #b9bbc5;
     }
 
-    .aero-status {
-        color: #7bd88f;
+    .aero-nav-right span {
+        cursor: default;
     }
 
+    .aero-new-chat {
+        padding: 8px 14px;
 
-    /* ======================================================
-       MAIN CARD
-       ====================================================== */
+        border-radius: 8px;
 
-    .aero-card {
-        width: 100%;
+        background: #ffffff;
+        color: #17181e;
 
-        background:
-            linear-gradient(
-                145deg,
-                rgba(65,65,76,0.90),
-                rgba(40,40,48,0.94)
-            );
-
-        border:
-            1px solid rgba(255,255,255,0.14);
-
-        border-radius: 14px;
-
-        box-shadow:
-            0 18px 60px rgba(0,0,0,0.30);
-
-        overflow: hidden;
+        font-size: 12px;
+        font-weight: 700;
     }
 
 
-    /* ======================================================
+    /* =====================================================
        SERVICE STATUS
-       ====================================================== */
+       ===================================================== */
 
     .service-status {
         text-align: center;
 
         padding: 10px;
 
-        font-size: 12px;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
 
-        color: #eeeeee;
+        color: #c6c7cf;
 
-        border-bottom:
-            1px solid rgba(255,255,255,0.10);
+        font-size: 13px;
     }
 
     .service-active {
-        color: #72d88a;
+        color: #61d391;
+        font-weight: 600;
     }
 
 
-    /* ======================================================
+    /* =====================================================
        HERO
-       ====================================================== */
+       ===================================================== */
 
     .hero {
         text-align: center;
 
-        padding:
-            45px 30px 25px 30px;
+        padding: 42px 20px 32px;
+
+        border: 1px solid rgba(255,255,255,0.13);
+
+        border-radius: 14px;
+
+        background:
+            linear-gradient(
+                145deg,
+                rgba(44,45,55,0.94),
+                rgba(28,29,37,0.94)
+            );
+
+        box-shadow:
+            0 18px 45px rgba(0,0,0,0.22);
     }
 
     .hero h1 {
         margin: 0;
 
-        font-size: 36px;
+        font-size: clamp(32px, 4vw, 48px);
 
         line-height: 1.12;
 
-        font-weight: 700;
+        color: #ffffff;
 
         letter-spacing: -1px;
     }
 
-    .hero p {
-        margin-top: 14px;
+    .hero-subtitle {
+        margin-top: 16px;
 
-        color: #b9b9c1;
+        color: #aeb0ba;
 
-        font-size: 14px;
+        font-size: 15px;
+
+        line-height: 1.6;
+    }
+
+    .hero-icon {
+        font-size: 28px;
+        margin-left: 6px;
     }
 
 
-    /* ======================================================
-       UPLOAD AREA
-       ====================================================== */
+    /* =====================================================
+       SECTION TITLES
+       ===================================================== */
 
-    .upload-info {
-        text-align: center;
+    .section-title {
+        display: flex;
+        align-items: center;
 
-        margin:
-            5px auto 20px auto;
+        gap: 8px;
 
-        color: #c9c9cf;
+        margin-top: 28px;
+        margin-bottom: 8px;
+
+        font-size: 14px;
+        font-weight: 700;
+
+        color: #ffffff;
+    }
+
+    .section-description {
+        color: #8f919d;
+
+        font-size: 12px;
+
+        margin-bottom: 12px;
+    }
+
+
+    /* =====================================================
+       DOCUMENT LIBRARY
+       ===================================================== */
+
+    .document-library {
+        padding: 16px;
+
+        border-radius: 10px;
+
+        background: #20222c;
+
+        border: 1px solid rgba(255,255,255,0.07);
+
+        color: #c5c7d0;
 
         font-size: 13px;
     }
 
-
-    /* ======================================================
-       BUTTONS
-       ====================================================== */
-
-    .stButton > button {
-
-        border-radius: 8px;
-
-        border:
-            1px solid rgba(255,255,255,0.22);
-
-        background:
-            linear-gradient(
-                180deg,
-                #ffffff,
-                #e8e8ea
-            );
-
-        color: #15151a;
-
-        font-weight: 600;
-
-        min-height: 42px;
-
-        transition: all 0.2s ease;
-    }
-
-    .stButton > button:hover {
-
-        transform: translateY(-1px);
-
-        border-color: #ffffff;
-
-        box-shadow:
-            0 6px 20px rgba(0,0,0,0.25);
+    .document-library-empty {
+        color: #75b7ff;
     }
 
 
-    /* ======================================================
-       PRIMARY PROCESS BUTTON
-       ====================================================== */
+    /* =====================================================
+       UPLOAD AREA
+       ===================================================== */
 
-    .process-button button {
+    .upload-helper {
+        text-align: center;
 
-        background:
-            linear-gradient(
-                135deg,
-                #ffffff,
-                #dddddf
-            ) !important;
+        color: #aaaeba;
 
-        color: #17171b !important;
+        font-size: 12px;
 
-        border:
-            1px solid #ffffff !important;
-
-        font-weight: 700 !important;
+        margin: 14px 0;
     }
 
-
-    /* ======================================================
-       FILE UPLOADER
-       ====================================================== */
-
-    [data-testid="stFileUploader"] {
-
-        background:
-            rgba(25,25,30,0.45);
-
-        border:
-            1px dashed rgba(255,255,255,0.30);
+    div[data-testid="stFileUploader"] {
+        border: 1px dashed rgba(255,255,255,0.28);
 
         border-radius: 10px;
+
+        background: rgba(28,29,36,0.8);
 
         padding: 8px;
     }
 
-    [data-testid="stFileUploaderDropzone"] {
 
-        background:
-            rgba(255,255,255,0.025);
+    /* =====================================================
+       BUTTONS
+       ===================================================== */
 
+    .stButton > button {
         border-radius: 8px;
-    }
 
+        border: 1px solid rgba(255,255,255,0.15);
 
-    /* ======================================================
-       DOCUMENT LIBRARY
-       ====================================================== */
+        background: #242631;
 
-    .library-title {
-
-        font-size: 14px;
+        color: #ffffff;
 
         font-weight: 600;
 
-        color: #eeeeef;
+        min-height: 40px;
+    }
 
-        margin-top: 5px;
+    .stButton > button:hover {
+        border-color: rgba(255,255,255,0.35);
 
-        margin-bottom: 8px;
+        background: #30323f;
+
+        color: #ffffff;
     }
 
 
-    /* ======================================================
-       CHAT AREA
-       ====================================================== */
+    /* =====================================================
+       CHAT
+       ===================================================== */
 
-    .chat-title {
+    .chat-section {
+        margin-top: 22px;
 
-        text-align: left;
-
-        font-size: 14px;
-
-        font-weight: 600;
-
-        color: #eeeeee;
-
-        margin:
-            10px 0 10px 0;
+        padding-bottom: 20px;
     }
 
+    div[data-testid="stChatMessage"] {
+        background: rgba(34,35,44,0.75);
 
-    /* ======================================================
-       CHAT MESSAGES
-       ====================================================== */
+        border: 1px solid rgba(255,255,255,0.06);
 
-    [data-testid="stChatMessage"] {
+        border-radius: 12px;
 
-        background:
-            rgba(255,255,255,0.035);
+        padding: 10px 14px;
 
-        border:
-            1px solid rgba(255,255,255,0.08);
+        margin-bottom: 10px;
+    }
+
+    div[data-testid="stChatInput"] {
+        background: rgba(25,26,33,0.96);
+
+        border: 1px solid rgba(255,255,255,0.18);
 
         border-radius: 10px;
-
-        margin-bottom: 8px;
     }
 
 
-    /* ======================================================
-       CHAT INPUT
-       ====================================================== */
+    /* =====================================================
+       ALERTS
+       ===================================================== */
 
-    [data-testid="stChatInput"] {
-
-        margin-top: 12px;
-    }
-
-    [data-testid="stChatInput"] textarea {
-
-        background:
-            rgba(35,35,42,0.95) !important;
-
-        color: #ffffff !important;
-
-        border:
-            1px solid rgba(255,255,255,0.35) !important;
-
-        border-radius: 10px !important;
-    }
-
-
-    /* ======================================================
-       INFO / SUCCESS / WARNING
-       ====================================================== */
-
-    [data-testid="stAlert"] {
-
+    div[data-testid="stAlert"] {
         border-radius: 9px;
     }
 
 
-    /* ======================================================
-       DIVIDER
-       ====================================================== */
-
-    .aero-divider {
-
-        height: 1px;
-
-        background:
-            rgba(255,255,255,0.10);
-
-        margin:
-            8px 0 20px 0;
-    }
-
-
-    /* ======================================================
+    /* =====================================================
        FOOTER
-       ====================================================== */
+       ===================================================== */
 
     .aero-footer {
-
         text-align: center;
 
-        color: #777780;
+        margin-top: 35px;
+
+        padding: 18px;
+
+        color: #646774;
 
         font-size: 11px;
-
-        padding: 22px 0 5px 0;
     }
 
     </style>
@@ -446,22 +389,23 @@ st.markdown(
 
 
 # ============================================================
-# TOP NAVBAR
+# TOP NAVIGATION
 # ============================================================
 
 st.markdown(
     """
-    <div class="aero-navbar">
+    <div class="aero-nav">
 
         <div class="aero-logo">
-            ✈️ AeroMind
+            <span class="aero-plane">✈️</span>
+            <span>AeroMind</span>
         </div>
 
         <div class="aero-nav-right">
             <span>My Library</span>
             <span>AeroMind</span>
             <span>Account</span>
-            <span class="aero-status">● Active</span>
+            <span class="aero-new-chat">New Chat</span>
         </div>
 
     </div>
@@ -471,31 +415,40 @@ st.markdown(
 
 
 # ============================================================
-# MAIN CARD
+# SERVICE STATUS
 # ============================================================
 
 st.markdown(
     """
-    <div class="aero-card">
+    <div class="service-status">
+        Service Status:
+        <span class="service-active">Active</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-        <div class="service-status">
-            Service Status:
-            <span class="service-active">Active</span>
-        </div>
 
-        <div class="hero">
+# ============================================================
+# HERO
+# ============================================================
 
-            <h1>
-                Pick a PDF.<br>
-                AeroMind Analyzes.<br>
-                Then Ask Questions. 📄
-            </h1>
+st.markdown(
+    """
+    <div class="hero">
 
-            <p>
-                Upload your engineering document and let AeroMind
-                retrieve answers directly from it.
-            </p>
+        <h1>
+            Pick a PDF.
+            <br>
+            AeroMind Analyzes.
+            📄
+            <br>
+            Then Ask Questions.
+        </h1>
 
+        <div class="hero-subtitle">
+            Upload your engineering document and let AeroMind
+            retrieve accurate answers directly from it.
         </div>
 
     </div>
@@ -505,7 +458,7 @@ st.markdown(
 
 
 # ============================================================
-# DOCUMENTS FROM SUPABASE
+# GET USER DOCUMENTS
 # ============================================================
 
 try:
@@ -519,7 +472,7 @@ except Exception as e:
     indexed_documents = []
 
     st.error(
-        f"Unable to load your document library: {e}"
+        "Unable to load your document library."
     )
 
 
@@ -528,15 +481,48 @@ except Exception as e:
 # ============================================================
 
 st.markdown(
-    '<div class="library-title">📚 My Document Library</div>',
+    """
+    <div class="section-title">
+        📚 My Document Library
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
 
 if indexed_documents:
 
+    st.markdown(
+        f"""
+        <div class="document-library">
+            {len(indexed_documents)}
+            document(s) available for this session.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+else:
+
+    st.markdown(
+        """
+        <div class="document-library document-library-empty">
+            No documents uploaded yet.
+            Upload a PDF below to get started.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# DOCUMENT SELECTION
+# ============================================================
+
+if indexed_documents:
+
     selected_documents = st.multiselect(
-        "Select documents to search",
+        "Search in:",
         indexed_documents,
         default=indexed_documents,
         label_visibility="collapsed",
@@ -546,20 +532,6 @@ else:
 
     selected_documents = []
 
-    st.info(
-        "No documents uploaded yet. Upload a PDF below to get started."
-    )
-
-
-# ============================================================
-# DIVIDER
-# ============================================================
-
-st.markdown(
-    '<div class="aero-divider"></div>',
-    unsafe_allow_html=True,
-)
-
 
 # ============================================================
 # UPLOAD SECTION
@@ -567,8 +539,12 @@ st.markdown(
 
 st.markdown(
     """
-    <div class="upload-info">
-        📄 Upload a PDF and AeroMind will automatically analyze it.
+    <div class="section-title">
+        📄 Upload a PDF
+    </div>
+
+    <div class="upload-helper">
+        Upload a PDF and AeroMind will analyze it automatically.
     </div>
     """,
     unsafe_allow_html=True,
@@ -589,39 +565,28 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files:
 
-    st.markdown(
-        '<div class="process-button">',
-        unsafe_allow_html=True,
-    )
-
-    process_clicked = st.button(
-        "⬆️  ANALYZE PDF",
+    if st.button(
+        "🚀 Process Documents",
         type="primary",
-        use_container_width=True,
-    )
-
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    if process_clicked:
+        use_container_width=False,
+    ):
 
         processed_any = False
 
         for uploaded_file in uploaded_files:
 
-            with st.spinner(
-                f"Analyzing {uploaded_file.name}..."
-            ):
+            temp_path = None
 
-                temp_path = None
+            with st.status(
+                f"Processing {uploaded_file.name}...",
+                expanded=True,
+            ) as status:
 
                 try:
 
-                    # ------------------------------------------
-                    # TEMPORARY PDF
-                    # ------------------------------------------
+                    # ----------------------------------------
+                    # Temporary PDF
+                    # ----------------------------------------
 
                     with tempfile.NamedTemporaryFile(
                         delete=False,
@@ -636,81 +601,113 @@ if uploaded_files:
                             temp_file.name
                         )
 
-                    # ------------------------------------------
-                    # EXISTING CLOUD INGESTION
-                    # ------------------------------------------
+
+                    st.write(
+                        "📖 Reading PDF..."
+                    )
+
+
+                    # ----------------------------------------
+                    # CLOUD INGESTION
+                    # ----------------------------------------
 
                     result = ingest_uploaded_pdf(
                         temp_path,
                         user_id=user_id,
                     )
 
-                    # ------------------------------------------
-                    # RESULT
-                    # ------------------------------------------
 
-                    if result.get("status") == "already_indexed":
+                    # ----------------------------------------
+                    # RESULT
+                    # ----------------------------------------
+
+                    if result["status"] == "already_indexed":
 
                         st.info(
-                            f"✓ {uploaded_file.name} "
-                            "is already available."
+                            f"{uploaded_file.name} "
+                            "is already indexed."
                         )
 
-                        processed_any = True
+                        status.update(
+                            label=f"Already indexed: {uploaded_file.name}",
+                            state="complete",
+                        )
 
-                    elif result.get("status") == "processed":
+
+                    elif result["status"] == "processed":
+
+                        st.write(
+                            "🧠 Generating embeddings..."
+                        )
 
                         st.success(
                             f"✅ {uploaded_file.name} "
-                            "has been analyzed successfully."
+                            "is ready for questions!"
                         )
 
                         st.caption(
-                            f"Pages: {result.get('pages', 0)}  •  "
+                            f"Pages: {result.get('pages', 0)} | "
                             f"Chunks: {result.get('chunks', 0)}"
                         )
 
                         processed_any = True
 
+                        status.update(
+                            label=f"Completed: {uploaded_file.name}",
+                            state="complete",
+                        )
+
+
                     else:
 
                         st.warning(
-                            f"Unexpected result for "
-                            f"{uploaded_file.name}: {result}"
+                            f"Unexpected result: {result}"
                         )
+
+                        status.update(
+                            label=f"Finished with warning: {uploaded_file.name}",
+                            state="error",
+                        )
+
 
                 except Exception as e:
 
                     st.error(
-                        f"❌ Could not analyze "
+                        f"❌ Failed to process "
                         f"{uploaded_file.name}: {e}"
                     )
 
+                    status.update(
+                        label=f"Failed: {uploaded_file.name}",
+                        state="error",
+                    )
+
+
                 finally:
 
-                    # ------------------------------------------
-                    # REMOVE TEMPORARY LOCAL FILE
-                    # ------------------------------------------
+                    # ----------------------------------------
+                    # REMOVE LOCAL TEMP FILE
+                    # ----------------------------------------
 
                     if (
-                        temp_path is not None
+                        temp_path
                         and temp_path.exists()
                     ):
 
                         try:
                             os.remove(temp_path)
-
                         except Exception:
                             pass
 
-        # ----------------------------------------------
-        # REFRESH DOCUMENT LIBRARY
-        # ----------------------------------------------
+
+        # --------------------------------------------
+        # REFRESH AFTER PROCESSING
+        # --------------------------------------------
 
         if processed_any:
 
             st.success(
-                "Your document is now ready for questions."
+                "🎉 Document processing completed."
             )
 
             st.rerun()
@@ -721,13 +718,26 @@ if uploaded_files:
 # ============================================================
 
 st.markdown(
-    '<div class="chat-title">💬 Ask AeroMind</div>',
+    """
+    <div class="chat-section">
+
+        <div class="section-title">
+            💬 Ask AeroMind
+        </div>
+
+        <div class="section-description">
+            Ask questions about the engineering documents
+            available in your document library.
+        </div>
+
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# EXISTING CHAT HISTORY
+# DISPLAY CHAT HISTORY
 # ============================================================
 
 for message in st.session_state.messages:
@@ -751,19 +761,19 @@ question = st.chat_input(
 
 
 # ============================================================
-# QUESTION PROCESSING
+# PROCESS QUESTION
 # ============================================================
 
 if question:
 
     # --------------------------------------------------------
-    # DOCUMENT CHECK
+    # CHECK DOCUMENTS
     # --------------------------------------------------------
 
     if not selected_documents:
 
         st.warning(
-            "Please upload and analyze a PDF first."
+            "⚠️ Please upload and process a PDF first."
         )
 
         st.stop()
@@ -777,6 +787,7 @@ if question:
 
         st.markdown(question)
 
+
     st.session_state.messages.append(
         {
             "role": "user",
@@ -786,7 +797,7 @@ if question:
 
 
     # --------------------------------------------------------
-    # RETRIEVAL
+    # RETRIEVE
     # --------------------------------------------------------
 
     with st.spinner(
@@ -796,16 +807,21 @@ if question:
         try:
 
             retrieved_chunks = retrieve_chunks(
+
                 question,
+
                 top_k=5,
+
                 sources=selected_documents,
+
                 user_id=user_id,
+
             )
 
         except Exception as e:
 
             st.error(
-                f"❌ Document search failed: {e}"
+                f"❌ Retrieval failed: {e}"
             )
 
             st.stop()
@@ -819,7 +835,7 @@ if question:
 
         answer = (
             "I couldn't find relevant information "
-            "in your selected documents."
+            "in the selected documents."
         )
 
 
@@ -830,7 +846,7 @@ if question:
     else:
 
         with st.spinner(
-            "🤖 AeroMind is thinking..."
+            "🤖 Generating answer..."
         ):
 
             try:
@@ -849,7 +865,7 @@ if question:
 
 
     # --------------------------------------------------------
-    # ASSISTANT MESSAGE
+    # SHOW ANSWER
     # --------------------------------------------------------
 
     with st.chat_message("assistant"):
@@ -858,7 +874,7 @@ if question:
 
 
     # --------------------------------------------------------
-    # SAVE MESSAGE
+    # SAVE ANSWER
     # --------------------------------------------------------
 
     st.session_state.messages.append(
@@ -876,7 +892,7 @@ if question:
 st.markdown(
     """
     <div class="aero-footer">
-        AeroMind AI • Engineering Document Intelligence
+        AeroMind AI · Engineering Document Intelligence
     </div>
     """,
     unsafe_allow_html=True,
