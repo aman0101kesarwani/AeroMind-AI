@@ -1,7 +1,6 @@
 import os
 import tempfile
 import uuid
-from pathlib import Path
 
 import streamlit as st
 
@@ -28,249 +27,664 @@ from services.storage_service import (
 
 
 # ============================================================
-# AeroMind AI
-# Main Streamlit Application
-# ============================================================
-
-
-# ============================================================
-# Page Configuration
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
     page_title="AeroMind AI",
     page_icon="✈️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
 # ============================================================
-# User Identity
+# USER ID
 # ============================================================
 
-# Anonymous user identity.
-#
-# No Google authentication.
-# No Supabase Auth account.
-#
-# Each active Streamlit session gets its own user_id.
-# All documents/vectors are stored using this user_id.
-
 if "user_id" not in st.session_state:
-
-    st.session_state.user_id = str(
-        uuid.uuid4()
-    )
-
+    st.session_state.user_id = str(uuid.uuid4())
 
 user_id = st.session_state.user_id
 
 
 # ============================================================
-# Chat State
+# SESSION STATE
 # ============================================================
 
 if "messages" not in st.session_state:
-
     st.session_state.messages = []
 
+if "upload_trigger" not in st.session_state:
+    st.session_state.upload_trigger = 0
+
 
 # ============================================================
-# Page Header
+# CUSTOM CSS
 # ============================================================
 
-st.title("✈️ AeroMind AI")
+st.markdown(
+    """
+    <style>
 
-st.caption(
-    "Multimodal Agentic RAG for Engineering Documents"
+    /* ------------------------------------------------------
+       GLOBAL
+    ------------------------------------------------------ */
+
+    .stApp {
+        background: #f5f7fa;
+    }
+
+    .main {
+        padding-top: 1.2rem;
+    }
+
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+
+    /* ------------------------------------------------------
+       SIDEBAR
+    ------------------------------------------------------ */
+
+    section[data-testid="stSidebar"] {
+        background: #111827;
+        border-right: 1px solid #1f2937;
+    }
+
+    section[data-testid="stSidebar"] * {
+        color: #e5e7eb;
+    }
+
+    section[data-testid="stSidebar"] .stButton > button {
+        background: #1f2937;
+        color: #e5e7eb;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        min-height: 38px;
+    }
+
+    section[data-testid="stSidebar"]
+    .stButton > button:hover {
+        background: #273449;
+        border-color: #4b5563;
+    }
+
+    /* ------------------------------------------------------
+       HEADER
+    ------------------------------------------------------ */
+
+    .aero-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid #e3e7ed;
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .aero-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .aero-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: #162033;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .aero-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #111827;
+        margin: 0;
+    }
+
+    .aero-subtitle {
+        font-size: 13px;
+        color: #6b7280;
+        margin-top: 3px;
+    }
+
+    .system-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: #4b5563;
+        white-space: nowrap;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #16a34a;
+    }
+
+    /* ------------------------------------------------------
+       SECTION LABEL
+    ------------------------------------------------------ */
+
+    .section-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+        color: #6b7280;
+        margin-bottom: 8px;
+    }
+
+    /* ------------------------------------------------------
+       UPLOAD CARD
+    ------------------------------------------------------ */
+
+    .upload-card {
+        background: #ffffff;
+        border: 1px solid #e3e7ed;
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .upload-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 5px;
+    }
+
+    .upload-description {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 14px;
+    }
+
+    /* ------------------------------------------------------
+       CHAT AREA
+    ------------------------------------------------------ */
+
+    .workspace-card {
+        background: #ffffff;
+        border: 1px solid #e3e7ed;
+        border-radius: 14px;
+        padding: 20px;
+        min-height: 340px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .workspace-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 3px;
+    }
+
+    .workspace-description {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 18px;
+    }
+
+    /* ------------------------------------------------------
+       METRICS
+    ------------------------------------------------------ */
+
+    .metric-card {
+        background: #ffffff;
+        border: 1px solid #e3e7ed;
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    }
+
+    .metric-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #6b7280;
+    }
+
+    .metric-value {
+        font-size: 21px;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 4px;
+    }
+
+    /* ------------------------------------------------------
+       DOCUMENT ITEM
+    ------------------------------------------------------ */
+
+    .document-row {
+        background: #ffffff;
+        border: 1px solid #e3e7ed;
+        border-radius: 10px;
+        padding: 11px 13px;
+        margin-bottom: 8px;
+    }
+
+    .document-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    /* ------------------------------------------------------
+       SOURCE
+    ------------------------------------------------------ */
+
+    .source-chip {
+        display: inline-block;
+        padding: 5px 9px;
+        background: #f0f4f8;
+        border: 1px solid #dbe2e8;
+        border-radius: 7px;
+        font-size: 11px;
+        color: #374151;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+
+    /* ------------------------------------------------------
+       BUTTONS
+    ------------------------------------------------------ */
+
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+    }
+
+    /* ------------------------------------------------------
+       CHAT INPUT
+    ------------------------------------------------------ */
+
+    [data-testid="stChatInput"] {
+        border-radius: 12px;
+    }
+
+    /* ------------------------------------------------------
+       FILE UPLOADER
+    ------------------------------------------------------ */
+
+    [data-testid="stFileUploader"] {
+        background: #fafbfc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    /* ------------------------------------------------------
+       REMOVE EXCESSIVE STREAMLIT SPACING
+    ------------------------------------------------------ */
+
+    div.block-container {
+        padding-bottom: 4rem;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
 # ============================================================
-# Sidebar
-# ============================================================
-
-st.sidebar.title("📚 Your Documents")
-
-st.sidebar.caption(
-    "Documents uploaded in this session"
-)
-
-
-# ============================================================
-# Load User Documents
+# LOAD USER DOCUMENTS
 # ============================================================
 
 try:
-
     user_documents = get_user_documents(
         user_id=user_id
     )
-
 except Exception as e:
-
-    st.sidebar.error(
-        "Unable to load your documents."
-    )
-
-    st.sidebar.caption(
-        str(e)
-    )
-
     user_documents = []
-
-
-# ============================================================
-# Document Selection
-# ============================================================
-
-if user_documents:
-
-    document_names = [
-        document["filename"]
-        for document in user_documents
-    ]
-
-    selected_documents = st.sidebar.multiselect(
-        "Search in:",
-        document_names,
-        default=document_names
-    )
-
-else:
-
-    selected_documents = []
-
-    st.sidebar.info(
-        "No documents processed yet."
+    st.sidebar.error(
+        "Unable to load documents."
     )
 
 
+document_names = [
+    document["filename"]
+    for document in user_documents
+]
+
+
 # ============================================================
-# Delete Documents
+# HEADER
 # ============================================================
 
-st.sidebar.divider()
+st.markdown(
+    """
+    <div class="aero-header">
 
-st.sidebar.subheader("🗑️ Delete Document")
+        <div class="aero-brand">
+
+            <div class="aero-logo">
+                ✈
+            </div>
+
+            <div>
+                <div class="aero-title">
+                    AeroMind AI
+                </div>
+
+                <div class="aero-subtitle">
+                    Engineering Intelligence Workspace
+                </div>
+            </div>
+
+        </div>
+
+        <div class="system-status">
+            <div class="status-dot"></div>
+            System ready
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
-if user_documents:
+# ============================================================
+# SIDEBAR
+# ============================================================
 
-    delete_options = [
-        document["filename"]
-        for document in user_documents
-    ]
+with st.sidebar:
 
-    document_to_delete = st.sidebar.selectbox(
-        "Select document:",
-        delete_options,
-        key="delete_document_select"
+    st.markdown(
+        """
+        <div style="
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        ">
+            Workspace
+        </div>
+
+        <div style="
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 18px;
+        ">
+            Manage your engineering documents
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
-    if st.sidebar.button(
-        "🗑️ Delete Selected Document",
-        use_container_width=True
-    ):
 
-        document = next(
-            (
-                item
-                for item in user_documents
-                if item["filename"]
-                == document_to_delete
-            ),
-            None
+    # --------------------------------------------------------
+    # Document count
+    # --------------------------------------------------------
+
+    st.markdown(
+        f"""
+        <div style="
+            background:#1f2937;
+            border:1px solid #374151;
+            border-radius:9px;
+            padding:11px 12px;
+            margin-bottom:16px;
+        ">
+            <div style="
+                font-size:11px;
+                color:#9ca3af;
+                text-transform:uppercase;
+            ">
+                Indexed documents
+            </div>
+
+            <div style="
+                font-size:22px;
+                font-weight:700;
+                margin-top:3px;
+            ">
+                {len(document_names)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+    # --------------------------------------------------------
+    # Document list
+    # --------------------------------------------------------
+
+    if document_names:
+
+        st.markdown(
+            "### Documents"
         )
 
-        if document is None:
+        for filename in document_names:
 
-            st.sidebar.error(
-                "Document could not be found."
+            st.markdown(
+                f"""
+                <div style="
+                    background:#1b2533;
+                    border:1px solid #2d3a4d;
+                    border-radius:8px;
+                    padding:10px 11px;
+                    margin-bottom:7px;
+                    font-size:12px;
+                ">
+                    <span style="color:#93c5fd;">
+                        FILE
+                    </span>
+                    &nbsp;
+                    {filename}
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
-        else:
+    else:
 
-            try:
+        st.markdown(
+            """
+            <div style="
+                color:#9ca3af;
+                font-size:12px;
+                padding:10px 0;
+            ">
+                No documents yet.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-                # ------------------------------------------
-                # 1. Delete PDF from Supabase Storage
-                # ------------------------------------------
 
-                storage_path = document[
-                    "storage_path"
-                ]
+    st.divider()
 
-                if storage_path:
 
-                    delete_pdf(
-                        storage_path
+    # --------------------------------------------------------
+    # Search selection
+    # --------------------------------------------------------
+
+    if document_names:
+
+        selected_documents = st.multiselect(
+            "Search scope",
+            document_names,
+            default=document_names
+        )
+
+    else:
+
+        selected_documents = []
+
+
+    # --------------------------------------------------------
+    # Delete
+    # --------------------------------------------------------
+
+    if document_names:
+
+        st.markdown(
+            "### Document actions"
+        )
+
+        document_to_delete = st.selectbox(
+            "Delete document",
+            document_names,
+            key="delete_document_select"
+        )
+
+        if st.button(
+            "Delete selected document",
+            use_container_width=True
+        ):
+
+            document = next(
+                (
+                    item
+                    for item in user_documents
+                    if item["filename"]
+                    == document_to_delete
+                ),
+                None
+            )
+
+            if document:
+
+                try:
+
+                    storage_path = document.get(
+                        "storage_path"
                     )
 
-                # ------------------------------------------
-                # 2. Delete database document
-                # ------------------------------------------
+                    if storage_path:
 
-                delete_document(
-                    document_id=document["id"],
-                    user_id=user_id
-                )
+                        delete_pdf(
+                            storage_path
+                        )
 
-                # ------------------------------------------
-                # 3. Clear chat
-                # ------------------------------------------
+                    delete_document(
+                        document_id=document["id"],
+                        user_id=user_id
+                    )
 
-                st.session_state.messages = []
+                    st.session_state.messages = []
 
-                st.sidebar.success(
-                    f"Deleted: {document_to_delete}"
-                )
+                    st.success(
+                        "Document deleted."
+                    )
 
-                # ------------------------------------------
-                # 4. Refresh application
-                # ------------------------------------------
+                    st.rerun()
 
-                st.rerun()
+                except Exception as e:
 
-            except Exception as e:
+                    st.error(
+                        f"Delete failed: {e}"
+                    )
 
-                st.sidebar.error(
-                    "Failed to delete document."
-                )
 
-                st.sidebar.caption(
-                    str(e)
-                )
+# ============================================================
+# TOP METRICS
+# ============================================================
 
-else:
+metric_1, metric_2, metric_3 = st.columns(
+    3
+)
 
-    st.sidebar.caption(
-        "Upload and process a PDF first."
+
+with metric_1:
+
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">
+                Documents
+            </div>
+
+            <div class="metric-value">
+                {len(document_names)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
 
 
+with metric_2:
+
+    st.markdown(
+        """
+        <div class="metric-card">
+            <div class="metric-label">
+                Search
+            </div>
+
+            <div class="metric-value">
+                Vector
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+with metric_3:
+
+    st.markdown(
+        """
+        <div class="metric-card">
+            <div class="metric-label">
+                Model
+            </div>
+
+            <div class="metric-value">
+                Gemini
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+st.write("")
+
+
 # ============================================================
-# Refresh Documents
+# UPLOAD AREA
 # ============================================================
 
-if st.sidebar.button(
-    "🔄 Refresh Documents",
-    use_container_width=True
-):
+st.markdown(
+    """
+    <div class="upload-card">
 
-    st.rerun()
+        <div class="section-label">
+            Document ingestion
+        </div>
 
+        <div class="upload-title">
+            Add engineering documents
+        </div>
 
-# ============================================================
-# Upload Section
-# ============================================================
+        <div class="upload-description">
+            Upload PDF manuals, technical reports,
+            specifications, research papers, or other
+            engineering documents.
+        </div>
 
-st.header("📄 Upload Engineering Documents")
-
-st.write(
-    "Upload one or more PDF files. "
-    "AeroMind will automatically extract, "
-    "embed, and index them."
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -278,250 +692,203 @@ uploaded_files = st.file_uploader(
     "Choose PDF files",
     type=["pdf"],
     accept_multiple_files=True,
-    key="pdf_uploader"
+    key="pdf_uploader",
+    label_visibility="collapsed"
 )
 
 
 # ============================================================
-# Process Documents
+# PROCESS UPLOADS
 # ============================================================
 
 if uploaded_files:
 
-    st.write(
-        f"**{len(uploaded_files)} PDF(s) selected**"
+    st.write("")
+
+    process_button = st.button(
+        "Process documents",
+        type="primary"
     )
 
-    for uploaded_file in uploaded_files:
-
-        st.caption(
-            f"📄 {uploaded_file.name} "
-            f"({uploaded_file.size / 1024:.1f} KB)"
-        )
-
-    if st.button(
-        "🚀 Process Documents",
-        type="primary",
-        use_container_width=True
-    ):
-
-        total_files = len(
-            uploaded_files
-        )
-
-        successful = 0
-
-        already_indexed = 0
-
-        failed = 0
+    if process_button:
 
         progress = st.progress(0)
 
-        status_box = st.empty()
+        total = len(uploaded_files)
+
+        processed_count = 0
+        already_count = 0
+        failed_count = 0
 
         for index, uploaded_file in enumerate(
             uploaded_files
         ):
 
-            status_box.info(
-                f"🔄 Processing "
-                f"{uploaded_file.name} "
-                f"({index + 1}/{total_files})"
-            )
-
             temp_path = None
 
-            try:
+            with st.status(
+                f"Processing {uploaded_file.name}...",
+                expanded=False
+            ) as status:
 
-                # ==========================================
-                # Save temporary copy
-                # ==========================================
+                try:
 
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix=".pdf"
-                ) as temp_file:
-
-                    temp_file.write(
-                        uploaded_file.getbuffer()
+                    file_bytes = (
+                        uploaded_file.getvalue()
                     )
 
-                    temp_path = Path(
-                        temp_file.name
-                    )
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=".pdf"
+                    ) as temp_file:
 
-                # ==========================================
-                # Process PDF
-                # ==========================================
-
-                result = ingest_uploaded_pdf(
-
-                    pdf_path=temp_path,
-
-                    user_id=user_id,
-
-                    original_filename=
-                        uploaded_file.name
-                )
-
-                # ==========================================
-                # Already Indexed
-                # ==========================================
-
-                if (
-                    result["status"]
-                    == "already_indexed"
-                ):
-
-                    already_indexed += 1
-
-                    st.info(
-                        f"✓ {uploaded_file.name} "
-                        "is already indexed."
-                    )
-
-                # ==========================================
-                # Successfully Processed
-                # ==========================================
-
-                elif (
-                    result["status"]
-                    == "processed"
-                ):
-
-                    successful += 1
-
-                    st.success(
-                        f"✅ {uploaded_file.name} "
-                        "processed successfully."
-                    )
-
-                    st.caption(
-                        f"Pages: "
-                        f"{result.get('pages', '?')} | "
-                        f"Chunks: "
-                        f"{result.get('chunks', '?')}"
-                    )
-
-                # ==========================================
-                # Unknown Result
-                # ==========================================
-
-                else:
-
-                    failed += 1
-
-                    st.warning(
-                        f"⚠️ Unexpected result for "
-                        f"{uploaded_file.name}: "
-                        f"{result}"
-                    )
-
-            except Exception as e:
-
-                failed += 1
-
-                st.error(
-                    f"❌ Failed to process "
-                    f"{uploaded_file.name}"
-                )
-
-                st.exception(e)
-
-            finally:
-
-                # ==========================================
-                # Delete temporary local PDF
-                # ==========================================
-
-                if (
-                    temp_path is not None
-                    and temp_path.exists()
-                ):
-
-                    try:
-
-                        os.remove(
-                            temp_path
+                        temp_file.write(
+                            file_bytes
                         )
 
-                    except Exception:
+                        temp_path = Path(
+                            temp_file.name
+                        )
 
-                        pass
+
+                    result = ingest_uploaded_pdf(
+                        pdf_path=temp_path,
+                        user_id=user_id,
+                        original_filename=(
+                            uploaded_file.name
+                        )
+                    )
+
+
+                    if (
+                        result["status"]
+                        == "processed"
+                    ):
+
+                        processed_count += 1
+
+                        status.update(
+                            label=(
+                                f"Processed "
+                                f"{uploaded_file.name}"
+                            ),
+                            state="complete"
+                        )
+
+
+                    elif (
+                        result["status"]
+                        == "already_indexed"
+                    ):
+
+                        already_count += 1
+
+                        status.update(
+                            label=(
+                                f"Already indexed: "
+                                f"{uploaded_file.name}"
+                            ),
+                            state="complete"
+                        )
+
+
+                    else:
+
+                        failed_count += 1
+
+                        status.update(
+                            label=(
+                                f"Unexpected result: "
+                                f"{uploaded_file.name}"
+                            ),
+                            state="error"
+                        )
+
+                except Exception as e:
+
+                    failed_count += 1
+
+                    status.update(
+                        label=(
+                            f"Failed: "
+                            f"{uploaded_file.name}"
+                        ),
+                        state="error"
+                    )
+
+                    st.error(
+                        str(e)
+                    )
+
+                finally:
+
+                    if (
+                        temp_path
+                        and temp_path.exists()
+                    ):
+
+                        try:
+                            os.remove(
+                                temp_path
+                            )
+                        except Exception:
+                            pass
 
             progress.progress(
-                (index + 1) / total_files
+                (index + 1) / total
             )
 
-        # ==================================================
-        # Final Processing Status
-        # ==================================================
 
-        status_box.success(
-            "Processing completed."
+        st.success(
+            f"Processing finished — "
+            f"{processed_count} processed, "
+            f"{already_count} already indexed, "
+            f"{failed_count} failed."
         )
-
-        st.write("---")
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-
-            st.metric(
-                "Processed",
-                successful
-            )
-
-        with col2:
-
-            st.metric(
-                "Already Indexed",
-                already_indexed
-            )
-
-        with col3:
-
-            st.metric(
-                "Failed",
-                failed
-            )
-
-        # ==================================================
-        # Refresh sidebar
-        # ==================================================
 
         st.rerun()
 
 
 # ============================================================
-# Chat Section
+# MAIN WORKSPACE
 # ============================================================
 
-st.header("💬 Ask Your Documents")
+st.markdown(
+    """
+    <div class="workspace-card">
+
+        <div class="section-label">
+            Document intelligence
+        </div>
+
+        <div class="workspace-title">
+            Ask your engineering documents
+        </div>
+
+        <div class="workspace-description">
+            Search across the selected documents and
+            get answers grounded in their content.
+        </div>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ============================================================
-# Current Document Status
+# EMPTY STATE
 # ============================================================
 
-if selected_documents:
-
-    st.success(
-        f"Searching in "
-        f"{len(selected_documents)} "
-        f"document(s)."
-    )
-
-else:
+if not document_names:
 
     st.info(
-        "Select at least one document "
-        "from the sidebar."
+        "Upload a PDF above to start your workspace."
     )
 
 
 # ============================================================
-# Display Chat History
+# CHAT HISTORY
 # ============================================================
 
 for message in st.session_state.messages:
@@ -536,36 +903,33 @@ for message in st.session_state.messages:
 
 
 # ============================================================
-# Chat Input
+# CHAT INPUT
 # ============================================================
 
 question = st.chat_input(
-    "Ask a question about your engineering documents..."
+    "Ask about your selected documents..."
 )
 
 
 # ============================================================
-# Process Question
+# ANSWER QUESTION
 # ============================================================
 
 if question:
 
-    # ========================================================
-    # Validate Documents
-    # ========================================================
-
     if not selected_documents:
 
         st.warning(
-            "⚠️ Please select at least one "
-            "document from the sidebar."
+            "Select at least one document "
+            "from the sidebar."
         )
 
         st.stop()
 
-    # ========================================================
-    # Display User Question
-    # ========================================================
+
+    # --------------------------------------------------------
+    # USER MESSAGE
+    # --------------------------------------------------------
 
     with st.chat_message("user"):
 
@@ -573,61 +937,47 @@ if question:
             question
         )
 
+
     st.session_state.messages.append({
-
         "role": "user",
-
         "content": question
     })
 
-    # ========================================================
-    # Retrieve
-    # ========================================================
+
+    # --------------------------------------------------------
+    # ASSISTANT
+    # --------------------------------------------------------
 
     with st.chat_message("assistant"):
 
-        retrieval_status = st.empty()
+        with st.spinner(
+            "Searching documents..."
+        ):
 
-        retrieval_status.info(
-            "🔎 Searching your documents..."
-        )
+            try:
 
-        try:
+                retrieved_chunks = retrieve_chunks(
+                    question=question,
+                    top_k=5,
+                    sources=selected_documents,
+                    user_id=user_id
+                )
 
-            retrieved_chunks = retrieve_chunks(
+            except Exception as e:
 
-                question=question,
+                st.error(
+                    f"Search failed: {e}"
+                )
 
-                top_k=5,
+                st.stop()
 
-                sources=selected_documents,
-
-                user_id=user_id
-            )
-
-        except Exception as e:
-
-            retrieval_status.error(
-                "❌ Document search failed."
-            )
-
-            st.exception(e)
-
-            st.stop()
-
-        # ====================================================
-        # No Results
-        # ====================================================
 
         if not retrieved_chunks:
 
             answer = (
-                "I couldn't find relevant "
-                "information in the selected "
-                "documents."
+                "I couldn't find relevant information "
+                "in the selected documents."
             )
-
-            retrieval_status.empty()
 
             st.markdown(
                 answer
@@ -635,57 +985,39 @@ if question:
 
         else:
 
-            retrieval_status.success(
-                f"🔎 Found "
-                f"{len(retrieved_chunks)} "
-                f"relevant sections."
-            )
-
-            # =================================================
-            # Generate Gemini Answer
-            # =================================================
-
             with st.spinner(
-                "🤖 Generating answer..."
+                "Generating response..."
             ):
 
                 try:
 
                     answer = generate_rag_answer(
-
                         question,
-
                         retrieved_chunks
                     )
 
                 except Exception as e:
 
-                    answer = (
-                        "⚠️ I couldn't generate "
-                        "an answer right now."
-                    )
-
                     st.error(
-                        str(e)
+                        f"Generation failed: {e}"
                     )
 
-            # =================================================
-            # Show Answer
-            # =================================================
+                    answer = (
+                        "I couldn't generate an answer "
+                        "right now."
+                    )
+
 
             st.markdown(
                 answer
             )
 
-            # =================================================
-            # Sources
-            # =================================================
 
-            st.markdown(
-                "### 📚 Sources"
-            )
+            # ------------------------------------------------
+            # SOURCES
+            # ------------------------------------------------
 
-            shown_sources = set()
+            unique_sources = set()
 
             for chunk in retrieved_chunks:
 
@@ -699,31 +1031,61 @@ if question:
                     "?"
                 )
 
-                source_key = (
-                    source,
-                    page
+                unique_sources.add(
+                    (source, page)
                 )
 
-                if source_key in shown_sources:
 
-                    continue
+            if unique_sources:
 
-                shown_sources.add(
-                    source_key
+                st.markdown(
+                    "#### Sources"
                 )
 
-                st.caption(
-                    f"📄 {source} "
-                    f"— Page {page}"
-                )
+                for source, page in sorted(
+                    unique_sources
+                ):
 
-    # ========================================================
-    # Save Assistant Message
-    # ========================================================
+                    st.markdown(
+                        f"""
+                        <span class="source-chip">
+                            {source} · Page {page}
+                        </span>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+
+    # --------------------------------------------------------
+    # SAVE MESSAGE
+    # --------------------------------------------------------
 
     st.session_state.messages.append({
-
         "role": "assistant",
-
         "content": answer
     })
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.write("")
+
+st.markdown(
+    """
+    <div style="
+        text-align:center;
+        color:#9ca3af;
+        font-size:11px;
+        padding:18px 0 5px 0;
+    ">
+        AeroMind AI · Engineering Intelligence Workspace
+        &nbsp;·&nbsp;
+        Supabase Vector Search
+        &nbsp;·&nbsp;
+        Gemini
+    </div>
+    """,
+    unsafe_allow_html=True
+)
